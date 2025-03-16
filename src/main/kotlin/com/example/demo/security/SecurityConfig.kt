@@ -31,8 +31,8 @@ class SecurityConfig(
         http
             .csrf { it.disable() }
             .authorizeHttpRequests { auth ->
-                auth.requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                    .anyRequest().authenticated()
+                auth.requestMatchers("/api/products/**","/api/nutritions/**","/api/brands/**", "/api/categories/**", "/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .anyRequest().authenticated()
             }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .exceptionHandling { it.authenticationEntryPoint(jwtAuthenticationEntryPoint) }

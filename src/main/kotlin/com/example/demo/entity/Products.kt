@@ -13,21 +13,51 @@ data class Products(
     @Column(nullable = false)
     val name: String,
 
-    val description: String? = null,
-
     @Column(nullable = false)
     val price: Double,
 
     @Column(nullable = false)
     val stock: Int,
 
-    @Column(name = "image_url")
+    @Column(nullable = false)
+    val unitName: String, // Ví dụ: "kg", "lít", "hộp"
+
+    @Column(nullable = false)
+    val unitValue: String, // Ví dụ: "1", "500g"
+
+    @Column(name = "nutrition_weight", nullable = true)
+    val nutritionWeight: String? = null, // Thông tin cân nặng dinh dưỡng
+
+    @Column(nullable = true)
+    val description: String? = null,
+
+    @Column(name = "image_url", nullable = true)
     val imageUrl: String? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
+    @JoinColumn(name = "category_id", nullable = true)
     val category: Categories? = null,
 
-    @Column(name = "created_at")
-    val createdAt: Instant? = Instant.now()
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id", nullable = true)
+    val brand: Brands? = null,
+
+    @Column(name = "offer_price", nullable = true)
+    val offerPrice: Double? = null, 
+
+    @Column(name = "avg_rating", nullable = true)
+    val avgRating: Int? = null, 
+
+    @Column(name = "start_date", nullable = true)
+    val startDate: Instant? = null,
+
+    @Column(name = "end_date", nullable = true)
+    val endDate: Instant? = null, 
+
+    @Column(name = "created_at", nullable = false)
+    val createdAt: Instant = Instant.now(),
+
+    @OneToMany(mappedBy = "product", cascade = [CascadeType.ALL], orphanRemoval = true)
+    val nutritionValues: List<ProductNutrition> = mutableListOf()
 )
+

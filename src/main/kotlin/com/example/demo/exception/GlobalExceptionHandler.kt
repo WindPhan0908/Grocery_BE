@@ -46,4 +46,13 @@ class GlobalExceptionHandler {
         }
         return ResponseEntity(errors, HttpStatus.BAD_REQUEST)
     }
+
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleIllegalArgumentException(ex: IllegalArgumentException): ResponseEntity<Any> {
+        val errorResponse = mapOf(
+            "message" to ex.message,
+            "status" to HttpStatus.BAD_REQUEST.value()
+        )
+        return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
+    }
 }
