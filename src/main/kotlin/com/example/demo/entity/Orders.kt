@@ -14,17 +14,27 @@ data class Orders(
     @JoinColumn(name = "user_id")
     val user: Users,
 
+    @Column(name = "order_code", nullable = false, unique = true)
+    val orderCode: String,
+
     @Column(name = "total_price", nullable = false)
-    val totalPrice: Double,
+    var totalPrice: Double,
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    val status: OrderStatus = OrderStatus.PENDING,
+    var status: OrderStatus = OrderStatus.PENDING,
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    var paymentMethod: PaymentProvider = PaymentProvider.PAYPAL, // Mặc định là PAYPAL
+
+    @Column(name = "is_paid", nullable = false)
+    var isPaid: Boolean = false,  // ✅ Kiểm tra đã thanh toán hay chưa
 
     @Column(name = "created_at")
     val createdAt: Instant? = Instant.now()
 )
 
 enum class OrderStatus {
-    PENDING, COMPLETED, CANCELLED
+    PENDING, COMPLETED, CANCELLED, AWAITING_PICKUP
 }

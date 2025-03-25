@@ -17,7 +17,7 @@ data class Products(
     val price: Double,
 
     @Column(nullable = false)
-    val stock: Int,
+    var stock: Int,
 
     @Column(nullable = false)
     val unitName: String, // Ví dụ: "kg", "lít", "hộp"

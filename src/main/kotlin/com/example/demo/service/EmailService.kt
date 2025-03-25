@@ -19,4 +19,13 @@ class EmailService(private val javaMailSender: JavaMailSender) {
             println("❌ Failed to send email: ${e.message}")
         }
     }
+
+    fun sendPaymentConfirmation(to: String, subject: String, body: String) {
+        val message = SimpleMailMessage()
+        message.setTo(to)
+        message.setSubject(subject)
+        message.setText(body)
+
+        javaMailSender.send(message) // ✅ Sửa `mailSender` thành `javaMailSender`
+    }
 }

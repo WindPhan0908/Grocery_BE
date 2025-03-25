@@ -19,7 +19,7 @@ data class Users(
     @Column(name = "full_name", nullable = false)
     val fullName: String,
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "email", nullable = false, unique = true)
     val email: String,
 
     @Column(unique = true)
@@ -40,4 +40,17 @@ data class Users(
 
     @Column(name = "is_verified", nullable = false)
     var isVerified: Boolean = false // ✅ Thêm trường xác thực tài khoản
-)
+) : UserDetails {
+
+    override fun getAuthorities(): Collection<GrantedAuthority> {
+        return role.roleName.split(",") // Nếu role được lưu dưới dạng "ADMIN,CUSTOMER" hoặc "admin,customer"
+            .map { SimpleGrantedAuthority("ROLE_${it.trim().uppercase()}") } // Chuyển thành chữ in hoa
+    }    
+
+    override fun getPassword(): String = "" // Không cần dùng mật khẩu ở đây
+    override fun getUsername(): String = email
+    override fun isAccountNonExpired(): Boolean = true
+    override fun isAccountNonLocked(): Boolean = true
+    override fun isCredentialsNonExpired(): Boolean = true
+    override fun isEnabled(): Boolean = isVerified
+}
