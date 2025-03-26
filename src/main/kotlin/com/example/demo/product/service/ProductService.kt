@@ -144,7 +144,7 @@ class ProductService(
             unitName = product.unitName,
             unitValue = product.unitValue,
             description = product.description,
-            imageUrl = request.imageUrl,
+            imageUrl = product.imageUrl,
             category = product.category?.name,
             brand = product.brand?.name,
             offerPrice = product.offerPrice,

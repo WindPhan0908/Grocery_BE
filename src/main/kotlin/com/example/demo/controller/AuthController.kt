@@ -7,6 +7,7 @@ import com.example.demo.service.AuthService
 import com.example.demo.service.EmailService
 import com.example.demo.service.OtpService
 import com.example.demo.service.UserService
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -14,7 +15,6 @@ import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.*
-import jakarta.validation.Valid
 
 @RestController
 @RequestMapping("/api/auth")
@@ -39,9 +39,8 @@ class AuthController(
             )
             val otp = otpService.generateOtp(savedUser.email)
             emailService.sendEmail(savedUser.email, "Your OTP Code", "Your OTP code is: $otp")
-            
-            // Tạo token tạm thời chứa email
-            val tempToken = jwtUtil.generateTemporaryToken(savedUser.email) // Cần thêm hàm này trong JwtUtil
+
+            val tempToken = jwtUtil.generateTemporaryToken(savedUser.email)
             ResponseEntity.ok(
                 mapOf(
                     "message" to "User registered successfully. Please verify your email with OTP",
@@ -91,7 +90,7 @@ class AuthController(
         val userDetails = authentication.principal as org.springframework.security.core.userdetails.UserDetails
         val token = jwtUtil.generateToken(userDetails.username)
         val refreshToken = jwtUtil.generateRefreshToken(userDetails.username)
-        
+
         val user = userService.findByEmail(userDetails.username) ?: return ResponseEntity.status(401).body(mapOf("error" to "User not found"))
         userService.updateRefreshToken(user.id ?: 0, refreshToken)
 
@@ -121,61 +120,25 @@ class AuthController(
     }
 
     @PostMapping("/send-otp")
-    fun sendOtp(@RequestParam email: String): ResponseEntity<Map<String, Any>> {
+    fun sendOtp(@RequestBody request: Map<String, String>): ResponseEntity<Map<String, Any>> {
+        val email = request["email"] ?: return ResponseEntity.badRequest().body(mapOf("error" to "Email is required"))
         userService.findByEmail(email) ?: return ResponseEntity.badRequest().body(mapOf("error" to "Email is not registered"))
-
         val otp = otpService.generateOtp(email)
         emailService.sendEmail(email, "Your OTP Code", "Your OTP code is: $otp")
-
         val tempToken = jwtUtil.generateTemporaryToken(email)
-
         return ResponseEntity.ok(mapOf("message" to "OTP has been sent", "tempToken" to tempToken))
     }
-    
 
     @PostMapping("/verify-otp")
-    fun verifyOtp(@RequestParam tempToken: String, @RequestParam otp: String): ResponseEntity<String> {
-        val email = jwtUtil.getUserEmailFromToken(tempToken) ?: return ResponseEntity.badRequest().body("Invalid token")
-
+    fun verifyOtp(@RequestBody request: Map<String, String>): ResponseEntity<Map<String, Any>> {
+        val tempToken = request["tempToken"] ?: return ResponseEntity.badRequest().body(mapOf("error" to "tempToken is required"))
+        val otp = request["otp"] ?: return ResponseEntity.badRequest().body(mapOf("error" to "OTP is required"))
+        val email = jwtUtil.getUserEmailFromToken(tempToken) ?: return ResponseEntity.badRequest().body(mapOf("error" to "Invalid token"))
         return if (otpService.validateOtp(email, otp)) {
             userService.verifyUser(email)
-            ResponseEntity.ok("OTP is valid. Your account is now verified.")
+            ResponseEntity.ok(mapOf("message" to "OTP is valid. Your account is now verified."))
         } else {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid or expired OTP")
+            ResponseEntity.status(HttpStatus.BAD_REQUEST).body(mapOf("error" to "Invalid or expired OTP"))
         }
     }
-
-
-    @PostMapping("/reset-password")
-    fun resetPassword(
-        @RequestParam tempToken: String,
-        @RequestParam otp: String,
-        @RequestParam newPassword: String
-    ): ResponseEntity<String> {
-        val email = jwtUtil.getUserEmailFromToken(tempToken) ?: return ResponseEntity.badRequest().body("Invalid token")
-
-        if (!otpService.validateOtp(email, otp)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid or expired OTP")
-        }
-
-        userService.updatePassword(email, newPassword)
-        return ResponseEntity.ok("Your password has been reset successfully.")
-    }
-
-
-
-    @PostMapping("/change-password")
-    fun changePassword(
-        @RequestParam email: String,
-        @RequestParam oldPassword: String,
-        @RequestParam newPassword: String
-    ): ResponseEntity<String> {
-        return try {
-            userService.changePassword(email, oldPassword, newPassword)
-            ResponseEntity.ok("Password changed successfully")
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.message)
-        }
-    }
-
 }
