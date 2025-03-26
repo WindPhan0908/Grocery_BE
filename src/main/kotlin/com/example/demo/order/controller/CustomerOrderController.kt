@@ -19,6 +19,7 @@ import com.example.demo.repository.UserRepository  // ✅ Import UsersRepository
 import java.time.Instant // ✅ Import Instant
 import java.util.UUID // ✅ Import UUID
 import com.example.demo.entity.PaymentProvider // ✅ Import PaymentProvider
+import java.math.BigDecimal
 
 @RestController
 @RequestMapping("api/orders/customer")
@@ -78,7 +79,7 @@ class CustomerOrderController(
 
         val order = Orders(
             user = user,
-            totalPrice = 100.0,
+            totalPrice = BigDecimal.valueOf(100.0),
             status = OrderStatus.PENDING,
             orderCode = UUID.randomUUID().toString(),
             createdAt = Instant.now()
@@ -92,6 +93,31 @@ class CustomerOrderController(
     fun completeCODPayment(@PathVariable orderId: Int): ResponseEntity<String> {
         val message = orderService.completeCODPayment(orderId)
         return ResponseEntity.ok(message)
+    }
+
+    @GetMapping("/search")
+    fun searchOrdersByOrderCode(
+        @RequestParam orderCode: String,
+        @RequestParam(required = false) status: OrderStatus?,
+        @PageableDefault(size = 5, sort = ["createdAt"]) pageable: Pageable
+    ): ResponseEntity<Page<OrderDTO>> {
+        val userId = getCurrentUserId()
+        val isAdmin = isAdmin()
+
+        val orders = orderService.searchOrdersByOrderCode(
+            orderCode = orderCode,
+            userId = if (isAdmin) null else userId, // Nếu là admin, không cần userId
+            isAdmin = isAdmin,
+            status = status,
+            pageable = pageable
+        )
+
+        return ResponseEntity.ok(orders)
+    }
+
+    fun isAdmin(): Boolean {
+        val authentication = SecurityContextHolder.getContext().authentication
+        return authentication.authorities.any { it.authority == "ROLE_ADMIN" }
     }
 }
 

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service
 import com.example.demo.entity.PaymentProvider
 import java.util.logging.Logger
 import org.springframework.beans.factory.annotation.Autowired
+import java.math.BigDecimal
 
 @Service
 class PayPalService(
@@ -17,7 +18,7 @@ class PayPalService(
 
     override fun getProvider(): PaymentProvider = PaymentProvider.PAYPAL
 
-    override fun createPayment(orderId: String, amount: Double): String {
+    override fun createPayment(orderId: String, amount: BigDecimal): String {
         val amountDetails = Amount().apply {
             currency = "USD"
             total = String.format("%.2f", amount)

@@ -21,6 +21,7 @@ import com.example.demo.entity.PaymentProvider
 import com.example.demo.entity.Payment
 import com.example.demo.entity.PaymentStatus
 import com.example.demo.payment.repository.PaymentRepository
+import java.math.BigDecimal
 
 @Service
 class OrderService(
@@ -52,8 +53,8 @@ class OrderService(
             productRepository.save(cart.product)
         }
 
-        val orderCode = "ORD-" + UUID.randomUUID().toString().substring(0, 8)
-        val totalOrderPrice = cartItems.sumOf { it.product.price * it.quantity }
+        val orderCode = generateUniqueOrderCode()
+        val totalOrderPrice = cartItems.sumOf { it.product.price.toBigDecimal() * it.quantity.toBigDecimal() }
         val status = if (paymentProvider == PaymentProvider.COD) OrderStatus.AWAITING_PICKUP else OrderStatus.PENDING
         
         val order = Orders(
@@ -64,7 +65,6 @@ class OrderService(
             paymentMethod = paymentProvider,
             createdAt = Instant.now()
         )        
-        
         ordersRepository.save(order)
 
         val orderItems = cartItems.map { cart ->
@@ -82,47 +82,7 @@ class OrderService(
             paymentRepository.save(payment)
         }
 
-        return "Order placed successfully!"
-    }
-
-    @Transactional
-    fun completeCODPayment(orderId: Int): String {
-        val order = ordersRepository.findById(orderId)
-            .orElseThrow { CustomException("Order not found", "ORDER_NOT_FOUND") }
-
-        if (order.status != OrderStatus.AWAITING_PICKUP) {
-            throw CustomException("Order is not eligible for COD payment", "INVALID_STATUS")
-        }
-
-        // Cập nhật trạng thái order
-        order.isPaid = true
-        order.status = OrderStatus.COMPLETED
-        ordersRepository.save(order)
-
-        // Tạo payment cho COD
-        val payment = Payment(
-            order = order,
-            transactionId = "COD-" + UUID.randomUUID().toString(),
-            status = PaymentStatus.COMPLETED
-        )
-        paymentRepository.save(payment)
-
-        return "COD payment completed successfully!"
-    }
-
-    fun getOrders(userId: Int, status: OrderStatus?, pageable: Pageable): Page<OrderDTO> {
-        val orders = if (status != null) {
-            ordersRepository.findByUserIdAndStatus(userId, status, pageable)
-        } else {
-            ordersRepository.findByUserId(userId, pageable)
-        }
-        return orders.map { convertToOrderDTO(it) }
-    }
-
-    fun getOrderDetails(orderId: Int): OrderDTO {
-        val order = ordersRepository.findById(orderId)
-            .orElseThrow { CustomException("Order not found", "ORDER_NOT_FOUND") }
-        return convertToOrderDTO(order)
+        return "Order placed successfully! Your order code is $orderCode."
     }
 
     @Transactional
@@ -146,11 +106,83 @@ class OrderService(
         order.status = OrderStatus.CANCELLED
         ordersRepository.save(order)
 
-        return "Order has been cancelled successfully!"
+        return "Order ${order.orderCode} has been cancelled successfully!"
+    }
+
+    fun getOrderByOrderCode(orderCode: String, userId: Int? = null, isAdmin: Boolean = false): OrderDTO {
+        val order = ordersRepository.findByOrderCode(orderCode)
+            .orElseThrow { CustomException("Order not found with orderCode: $orderCode", "ORDER_NOT_FOUND") }
+        
+        if (!isAdmin && userId != null && order.user.id != userId) {
+            throw CustomException("You are not allowed to view this order", "FORBIDDEN")
+        }
+        
+        return convertToOrderDTO(order)
+    }
+
+    private fun generateUniqueOrderCode(): String {
+        val timestamp = Instant.now().toEpochMilli()
+        val randomPart = UUID.randomUUID().toString().substring(0, 8)
+        return "ORD-$timestamp-$randomPart"
     }
 
     @Transactional
-    fun updateOrderStatus(orderId: Int, newStatus: OrderStatus): String {
+    fun completeCODPayment(orderId: Int, isAdmin: Boolean = false): String {
+        if (!isAdmin) {
+            throw CustomException("Only admins can complete COD payments", "FORBIDDEN")
+        }
+
+        val order = ordersRepository.findById(orderId)
+            .orElseThrow { CustomException("Order not found", "ORDER_NOT_FOUND") }
+
+        if (order.status != OrderStatus.AWAITING_PICKUP) {
+            throw CustomException("Order is not eligible for COD payment", "INVALID_STATUS")
+        }
+
+        order.isPaid = true
+        order.status = OrderStatus.COMPLETED
+        ordersRepository.save(order)
+
+        val payment = Payment(
+            order = order,
+            transactionId = "COD-" + UUID.randomUUID().toString(),
+            status = PaymentStatus.COMPLETED
+        )
+        paymentRepository.save(payment)
+
+        return "COD payment completed successfully!"
+    }
+
+    fun getOrders(userId: Int, status: OrderStatus?, pageable: Pageable, requestingUserId: Int? = null, isAdmin: Boolean = false): Page<OrderDTO> {
+        if (!isAdmin && requestingUserId != null && userId != requestingUserId) {
+            throw CustomException("You can only view your own orders", "FORBIDDEN")
+        }
+
+        val orders = if (status != null) {
+            ordersRepository.findByUserIdAndStatus(userId, status, pageable)
+        } else {
+            ordersRepository.findByUserId(userId, pageable)
+        }
+        return orders.map { convertToOrderDTO(it) }
+    }
+
+    fun getOrderDetails(orderId: Int, userId: Int? = null, isAdmin: Boolean = false): OrderDTO {
+        val order = ordersRepository.findById(orderId)
+            .orElseThrow { CustomException("Order not found", "ORDER_NOT_FOUND") }
+        
+        if (!isAdmin && userId != null && order.user.id != userId) {
+            throw CustomException("You are not allowed to view this order", "FORBIDDEN")
+        }
+        
+        return convertToOrderDTO(order)
+    }
+
+    @Transactional
+    fun updateOrderStatus(orderId: Int, newStatus: OrderStatus, isAdmin: Boolean = false): String {
+        if (!isAdmin) {
+            throw CustomException("Only admins can update order status", "FORBIDDEN")
+        }
+
         val order = ordersRepository.findById(orderId)
             .orElseThrow { CustomException("Order not found", "ORDER_NOT_FOUND") }
 
@@ -162,7 +194,6 @@ class OrderService(
             throw CustomException("Cannot update a completed order", "INVALID_STATUS")
         }
 
-        // ✅ Kiểm tra nếu chuyển trạng thái COMPLETED thì phải có isPaid = true
         if (newStatus == OrderStatus.COMPLETED && !order.isPaid) {
             throw CustomException("Cannot complete order without payment", "UNPAID_ORDER")
         }
@@ -173,33 +204,21 @@ class OrderService(
         return "Order status updated to $newStatus"
     }
 
-    fun getTotalRevenue(): Double {
-        return ordersRepository.findByStatus(OrderStatus.COMPLETED, Pageable.unpaged()).sumOf { it.totalPrice }
+    fun getTotalRevenue(): BigDecimal {
+        val completedOrders = ordersRepository.findByStatus(OrderStatus.COMPLETED, Pageable.unpaged())
+        if (completedOrders.isEmpty) {
+            return BigDecimal.ZERO // Return 0 if there are no completed orders
+        }
+        return completedOrders
+            .map { it.totalPrice } // totalPrice is already BigDecimal
+            .fold(BigDecimal.ZERO, BigDecimal::add) // Sum using BigDecimal addition
     }
 
-    private fun convertToOrderDTO(order: Orders): OrderDTO {
-        val orderId = order.id ?: throw CustomException("Order ID is null", "ORDER_ERROR")
+    fun getAllOrders(status: OrderStatus?, pageable: Pageable, isAdmin: Boolean = false): Page<OrderDTO> {
+        if (!isAdmin) {
+            throw CustomException("Only admins can view all orders", "FORBIDDEN")
+        }
 
-        val items = orderItemsRepository.findByOrderId(orderId)
-            .map { item ->
-                OrderItemDTO(
-                    productName = item.product.name,
-                    quantity = item.quantity,
-                    price = item.price
-                )
-            }
-
-        return OrderDTO(
-            id = orderId,
-            totalPrice = order.totalPrice,
-            status = order.status.name,
-            createdAt = order.createdAt ?: Instant.now(),
-            items = items
-        )
-    }
-
-    // 📌 Thêm phương thức này để Admin lấy tất cả đơn hàng
-    fun getAllOrders(status: OrderStatus?, pageable: Pageable): Page<OrderDTO> {
         val orders = if (status != null) {
             ordersRepository.findByStatus(status, pageable)
         } else {
@@ -208,15 +227,69 @@ class OrderService(
         return orders.map { convertToOrderDTO(it) }
     }
 
-    // 📌 Thêm phương thức này để Admin lấy thống kê đơn hàng
-    fun getOrderStatistics(): Map<String, Any> {
+    fun getOrderStatistics(isAdmin: Boolean = false): Map<String, Any> {
+        if (!isAdmin) {
+            throw CustomException("Only admins can view order statistics", "FORBIDDEN")
+        }
+
         val totalOrders = ordersRepository.count()
         val totalPending = ordersRepository.countByStatus(OrderStatus.PENDING)
         val totalCompleted = ordersRepository.countByStatus(OrderStatus.COMPLETED)
+        val totalRevenue = getTotalRevenue() // Use the updated method
         return mapOf(
             "totalOrders" to totalOrders,
             "pendingOrders" to totalPending,
-            "completedOrders" to totalCompleted
+            "completedOrders" to totalCompleted,
+            "totalRevenue" to totalRevenue
+        )
+    }
+
+    fun searchOrdersByOrderCode(
+        orderCode: String,
+        userId: Int? = null,
+        isAdmin: Boolean = false,
+        status: OrderStatus? = null,
+        pageable: Pageable
+    ): Page<OrderDTO> {
+        val orders = when {
+            isAdmin && status != null -> {
+                ordersRepository.findByStatusAndOrderCodeContainingIgnoreCase(status, orderCode, pageable)
+            }
+            isAdmin -> {
+                ordersRepository.findByOrderCodeContainingIgnoreCase(orderCode, pageable)
+            }
+            userId != null && status != null -> {
+                ordersRepository.findByUserIdAndStatusAndOrderCodeContainingIgnoreCase(userId, status, orderCode, pageable)
+            }
+            userId != null -> {
+                ordersRepository.findByUserIdAndOrderCodeContainingIgnoreCase(userId, orderCode, pageable)
+            }
+            else -> {
+                throw CustomException("Either userId or isAdmin must be provided", "INVALID_REQUEST")
+            }
+        }
+        return orders.map { convertToOrderDTO(it) }
+    }
+
+    private fun convertToOrderDTO(order: Orders): OrderDTO {
+        val orderId = order.id ?: throw CustomException("Order ID is null", "ORDER_ERROR")
+        val items = orderItemsRepository.findByOrderId(orderId)
+            .map { item ->
+                OrderItemDTO(
+                    productName = item.product.name,
+                    quantity = item.quantity,
+                    price = item.price
+                )
+            }
+        return OrderDTO(
+            id = orderId,
+            orderCode = order.orderCode,
+            totalPrice = order.totalPrice,
+            status = order.status.name,
+            paymentMethod = order.paymentMethod.name,
+            isPaid = order.isPaid,
+            createdAt = order.createdAt ?: Instant.now(),
+            items = items
         )
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import java.util.Optional
 
 interface OrdersRepository : JpaRepository<Orders, Int> {
     fun findByUserId(userId: Int, pageable: Pageable): Page<Orders>
@@ -18,4 +19,11 @@ interface OrdersRepository : JpaRepository<Orders, Int> {
     @Modifying
     @Query("UPDATE Orders o SET o.status = :status WHERE o.id = :orderId")
     fun updateOrderStatus(orderId: Int?, status: OrderStatus)
+    fun findByOrderCode(orderCode: String): Optional<Orders>
+    fun existsByOrderCode(orderCode: String): Boolean
+
+    fun findByUserIdAndOrderCodeContainingIgnoreCase(userId: Int, orderCode: String, pageable: Pageable): Page<Orders>
+    fun findByUserIdAndStatusAndOrderCodeContainingIgnoreCase(userId: Int, status: OrderStatus, orderCode: String, pageable: Pageable): Page<Orders>
+    fun findByOrderCodeContainingIgnoreCase(orderCode: String, pageable: Pageable): Page<Orders>
+    fun findByStatusAndOrderCodeContainingIgnoreCase(status: OrderStatus, orderCode: String, pageable: Pageable): Page<Orders>
 }

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
+import java.math.BigDecimal
 
 @RestController
 @RequestMapping("api/orders/admin")
@@ -47,5 +48,11 @@ class AdminOrderController(private val orderService: OrderService) {
     fun getOrderStatuses(): ResponseEntity<List<String>> {
         val statuses = OrderStatus.values().map { it.name }
         return ResponseEntity.ok(statuses)
+    }
+
+    @GetMapping("/total-revenue")
+    fun getTotalRevenue(): ResponseEntity<BigDecimal> {
+        val totalRevenue = orderService.getTotalRevenue()
+        return ResponseEntity.ok(totalRevenue)
     }
 }

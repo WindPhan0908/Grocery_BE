@@ -139,16 +139,16 @@ class PaymentService(
                 val userEmail = user.email
                 val userName = user.fullName
 
-                if (userEmail != null && userEmail.isNotBlank()) {
+                if (userEmail.isNotBlank()) {
                     logger.info("Sending email to $userEmail")
                     try {
                         emailService.sendPaymentConfirmation(
                             to = userEmail,
-                            subject = "Payment Confirmation - Order #${payment.order.id}",
+                            subject = "Payment Confirmation - Order #${payment.order.orderCode}",
                             body = """
                                 Hello $userName,
                                 
-                                Your payment for Order #${payment.order.id} has been successfully processed! 🎉  
+                                Your payment for Order #${payment.order.orderCode} has been successfully processed! 🎉  
                                 Total Amount: $${String.format("%.2f", payment.order.totalPrice)}  
                                 Payment Method: ${payment.order.paymentMethod}  
                                 

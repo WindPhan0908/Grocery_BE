@@ -2,6 +2,7 @@ package com.example.demo.entity
 
 import jakarta.persistence.*
 import java.time.Instant
+import java.math.BigDecimal
 
 @Entity
 @Table(name = "orders")
@@ -18,7 +19,7 @@ data class Orders(
     val orderCode: String,
 
     @Column(name = "total_price", nullable = false)
-    var totalPrice: Double,
+    var totalPrice: BigDecimal = BigDecimal.ZERO,
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
