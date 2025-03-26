@@ -22,13 +22,14 @@ class CartService(
             CartDTO(
                 id = cart.id,
                 productName = cart.product.name,
+                imageUrl = cart.product.imageUrl, // Lấy ảnh từ Product
                 quantity = cart.quantity,
-                price = cart.product.price, // Giá từng sản phẩm
-                totalPrice = cart.quantity * cart.product.price // Tổng tiền từng sản phẩm
+                price = cart.product.price,
+                totalPrice = cart.quantity * cart.product.price
             )
         }
     
-        val grandTotal = cartItems.sumOf { it.totalPrice } // Tổng tiền của toàn bộ giỏ hàng
+        val grandTotal = cartItems.sumOf { it.totalPrice }
     
         return mapOf(
             "items" to cartItems,
