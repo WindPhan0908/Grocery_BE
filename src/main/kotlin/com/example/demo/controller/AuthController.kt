@@ -17,31 +17,29 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.*
 import jakarta.validation.Valid
 
-
 @RestController
 @RequestMapping("/api/auth")
 class AuthController(
-   private val userService: UserService,
-   private val jwtUtil: JwtUtil,
-   private val authService: AuthService,
-   private val otpService: OtpService,
-   private val emailService: EmailService,
-   private val authenticationManager: AuthenticationManager
+    private val userService: UserService,
+    private val jwtUtil: JwtUtil,
+    private val authService: AuthService,
+    private val otpService: OtpService,
+    private val emailService: EmailService,
+    private val authenticationManager: AuthenticationManager
 ) {
 
 
-   @PostMapping("/register")
-   fun register(@Valid @RequestBody registrationDTO: UserRegistrationDTO): ResponseEntity<Any> {
-       return try {
-           val savedUser = userService.registerUser(
-               registrationDTO.fullName,
-               registrationDTO.email,
-               registrationDTO.password,
-               registrationDTO.phone,
-               registrationDTO.address
-           )
-           val otp = otpService.generateOtp(savedUser.email)
-
+    @PostMapping("/register")
+    fun register(@Valid @RequestBody registrationDTO: UserRegistrationDTO): ResponseEntity<Any> {
+        return try {
+            val savedUser = userService.registerUser(
+                registrationDTO.fullName,
+                registrationDTO.email,
+                registrationDTO.password,
+                registrationDTO.phone,
+                registrationDTO.address
+            )
+            val otp = otpService.generateOtp(savedUser.email)
 
            emailService.sendEmail(savedUser.email, "Your OTP Code", "Your OTP code is: $otp")
           
@@ -193,12 +191,5 @@ class AuthController(
        }
    }
 
-
 }
-
-
-
-
-
-
 
