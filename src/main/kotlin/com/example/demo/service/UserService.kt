@@ -23,7 +23,7 @@ class UserService(
     private val emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\$".toRegex()
     private val phoneRegex = "^(\\+\\d{1,3})?\\d{8,15}$".toRegex()
 
-    fun registerUser(fullName: String, email: String, password: String, phone: String?, address: String?): Users {
+    fun registerUser(fullName: String, email: String, password: String, phone: String?): Users {
         if (!email.matches(emailRegex)) throw CustomException("Invalid email format", "INVALID_EMAIL")
         if (userRepository.findByEmail(email) != null) throw CustomException("Email '$email' already exists", "EMAIL_EXISTS")
         if (phone != null && !phone.matches(phoneRegex)) throw CustomException("Invalid phone number format", "INVALID_PHONE")
@@ -31,13 +31,13 @@ class UserService(
 
         val customerRole = rolesRepository.findByRoleNameIgnoreCase("CUSTOMER") ?: throw IllegalArgumentException("Role CUSTOMER not found")
         val newUser = userRepository.save(
-            Users(fullName = fullName, email = email, phone = phone, address = address, role = customerRole, createdAt = Instant.now(), isVerified = false)
+            Users(fullName = fullName, email = email, phone = phone, role = customerRole, createdAt = Instant.now(), isVerified = false)
         )
         userCredentialsRepository.save(UserCredentials(user = newUser, passwordHash = passwordEncoder.encode(password)))
         return newUser
     }
 
-    fun registerUserByAdmin(fullName: String, email: String, password: String, phone: String?, address: String?, roleId: Int, isVerified: Boolean): Users {
+    fun registerUserByAdmin(fullName: String, email: String, password: String, phone: String?, roleId: Int, isVerified: Boolean): Users {
         if (!email.matches(emailRegex)) throw CustomException("Invalid email format", "INVALID_EMAIL")
         if (userRepository.findByEmail(email) != null) throw CustomException("Email '$email' already exists", "EMAIL_EXISTS")
         if (phone != null && !phone.matches(phoneRegex)) throw CustomException("Invalid phone number format", "INVALID_PHONE")
@@ -45,7 +45,7 @@ class UserService(
 
         val role = rolesRepository.findById(roleId).orElseThrow { IllegalArgumentException("Role not found with ID: $roleId") }
         val newUser = userRepository.save(
-            Users(fullName = fullName, email = email, phone = phone, address = address, role = role, createdAt = Instant.now(), isVerified = isVerified)
+            Users(fullName = fullName, email = email, phone = phone, role = role, createdAt = Instant.now(), isVerified = isVerified)
         )
         userCredentialsRepository.save(UserCredentials(user = newUser, passwordHash = passwordEncoder.encode(password)))
         return newUser

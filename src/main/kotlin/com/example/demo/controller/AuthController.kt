@@ -36,8 +36,7 @@ class AuthController(
                 registrationDTO.fullName,
                 registrationDTO.email,
                 registrationDTO.password,
-                registrationDTO.phone,
-                registrationDTO.address
+                registrationDTO.phone
             )
             val otp = otpService.generateOtp(savedUser.email)
 
@@ -69,7 +68,6 @@ class AuthController(
                registrationDTO.email,
                registrationDTO.password,
                registrationDTO.phone,
-               registrationDTO.address,
                registrationDTO.roleId,
                true
            )

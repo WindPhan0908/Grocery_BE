@@ -31,7 +31,7 @@ class SecurityConfig(
         http
             .csrf { it.disable() }
             .authorizeHttpRequests { auth ->
-                auth.requestMatchers("/api/payments/**","/api/cart/**","/api/products/**","/api/nutritions/**","/api/brands/**", "/api/categories/**", "/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                auth.requestMatchers("/api/addresses/**","/api/payments/**","/api/cart/**","/api/products/**","/api/nutritions/**","/api/brands/**", "/api/categories/**", "/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // 🎯 API dành cho CUSTOMER
                 auth.requestMatchers("/api/orders/customer/**").hasAnyRole("CUSTOMER", "ADMIN")
 

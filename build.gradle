@@ -19,6 +19,8 @@ repositories {
 }
 
 dependencies {
+    implementation 'org.springframework.retry:spring-retry'
+    implementation 'org.springframework:spring-aspects'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
@@ -33,6 +35,8 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql:42.6.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     implementation("com.paypal.sdk:rest-api-sdk:1.14.0")
+    implementation("org.springframework.boot:spring-boot-starter-webflux")
+    implementation("io.projectreactor:reactor-core")
 }
 
 tasks.named('test') {

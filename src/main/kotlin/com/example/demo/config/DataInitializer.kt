@@ -35,7 +35,7 @@ class DataInitializer(
                     fullName = "Admin User",
                     email = "admin@example.com",
                     phone = "0123456789",
-                    address = "Admin Address",
+                    // address = "Admin Address",
                     role = adminRole,
                     createdAt = Instant.now(),
                     isVerified = true // Admin được verified ngay
@@ -57,7 +57,7 @@ class DataInitializer(
                     fullName = "Customer User",
                     email = "customer@example.com",
                     phone = "0987654321",
-                    address = "Customer Address",
+                    // address = "Customer Address",
                     role = customerRole,
                     createdAt = Instant.now(),
                     isVerified = true // Customer được verified ngay

@@ -20,7 +20,9 @@ import java.util.UUID
 import com.example.demo.entity.PaymentProvider
 import com.example.demo.entity.Payment
 import com.example.demo.entity.PaymentStatus
+import com.example.demo.entity.*
 import com.example.demo.payment.repository.PaymentRepository
+import com.example.demo.address.repository.AddressRepository
 import java.math.BigDecimal
 
 @Service
@@ -30,7 +32,8 @@ class OrderService(
     private val cartRepository: CartRepository,
     private val userRepository: UserRepository,
     private val productRepository: ProductRepository,
-    private val paymentRepository: PaymentRepository
+    private val paymentRepository: PaymentRepository,
+    private val addressesRepository: AddressRepository // ✅ Thêm repository này
 ) {
     @Transactional
     fun placeOrder(userId: Int, paymentProvider: PaymentProvider): String {
@@ -41,6 +44,11 @@ class OrderService(
 
         val user = userRepository.findById(userId)
             .orElseThrow { CustomException("User not found", "USER_NOT_FOUND") }
+
+        // ✅ Lấy địa chỉ mặc định của User
+        val defaultAddress = addressesRepository.findByUserId(userId)
+            .firstOrNull { it.isDefault }
+            ?: throw CustomException("No default address found", "NO_DEFAULT_ADDRESS")
 
         cartItems.forEach { cart ->
             if (cart.product.stock < cart.quantity) {
@@ -56,14 +64,19 @@ class OrderService(
         val orderCode = generateUniqueOrderCode()
         val totalOrderPrice = cartItems.sumOf { it.product.price.toBigDecimal() * it.quantity.toBigDecimal() }
         val status = if (paymentProvider == PaymentProvider.COD) OrderStatus.AWAITING_PICKUP else OrderStatus.PENDING
-        
+
+        // ✅ Lưu địa chỉ vào đơn hàng
         val order = Orders(
             user = user,
             orderCode = orderCode,
             totalPrice = totalOrderPrice,
             status = status,
             paymentMethod = paymentProvider,
-            createdAt = Instant.now()
+            createdAt = Instant.now(),
+            street = defaultAddress.street,
+            province = defaultAddress.province.name, // Use Province.name
+            district = defaultAddress.district.name, // Use District.name
+            ward = defaultAddress.ward.name          // Use Ward.name
         )        
         ordersRepository.save(order)
 
@@ -273,14 +286,13 @@ class OrderService(
 
     private fun convertToOrderDTO(order: Orders): OrderDTO {
         val orderId = order.id ?: throw CustomException("Order ID is null", "ORDER_ERROR")
-        val items = orderItemsRepository.findByOrderId(orderId)
-            .map { item ->
-                OrderItemDTO(
-                    productName = item.product.name,
-                    quantity = item.quantity,
-                    price = item.price
-                )
-            }
+        val items = orderItemsRepository.findByOrderId(orderId).map { item ->
+            OrderItemDTO(
+                productName = item.product.name,
+                quantity = item.quantity,
+                price = item.price
+            )
+        }
         return OrderDTO(
             id = orderId,
             orderCode = order.orderCode,
@@ -289,7 +301,11 @@ class OrderService(
             paymentMethod = order.paymentMethod.name,
             isPaid = order.isPaid,
             createdAt = order.createdAt ?: Instant.now(),
-            items = items
+            items = items,
+            street = order.street,
+            province = order.province,
+            district = order.district,
+            ward = order.ward
         )
     }
 }

@@ -19,6 +19,8 @@ import com.example.demo.repository.UserRepository  // ✅ Import UsersRepository
 import java.time.Instant // ✅ Import Instant
 import java.util.UUID // ✅ Import UUID
 import com.example.demo.entity.PaymentProvider // ✅ Import PaymentProvider
+import com.example.demo.address.repository.AddressRepository // ✅ Import AddressRepository
+import com.example.demo.entity.Address // ✅ Import Address
 import java.math.BigDecimal
 
 @RestController
@@ -70,23 +72,6 @@ class CustomerOrderController(
         val userId = getCurrentUserId()
         val message = orderService.cancelOrder(orderId, userId)
         return ResponseEntity.ok(message)
-    }
-
-    @PostMapping("/test")
-    fun createTestOrder(@RequestParam userId: Int): ResponseEntity<Orders> {
-        val user = usersRepository.findById(userId)
-            .orElseThrow { IllegalArgumentException("User not found") }
-
-        val order = Orders(
-            user = user,
-            totalPrice = BigDecimal.valueOf(100.0),
-            status = OrderStatus.PENDING,
-            orderCode = UUID.randomUUID().toString(),
-            createdAt = Instant.now()
-        )
-
-        val savedOrder = ordersRepository.save(order)
-        return ResponseEntity.ok(savedOrder)
     }
 
     @PostMapping("/{orderId}/complete-cod")

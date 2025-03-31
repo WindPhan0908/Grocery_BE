@@ -25,8 +25,6 @@ data class Users(
     @Column(unique = true)
     val phone: String? = null,
 
-    val address: String? = null,
-
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "role_id", nullable = false)
     @JsonProperty("role")
@@ -39,7 +37,10 @@ data class Users(
     var refreshToken: String? = null,
 
     @Column(name = "is_verified", nullable = false)
-    var isVerified: Boolean = false // ✅ Thêm trường xác thực tài khoản
+    var isVerified: Boolean = false, // ✅ Thêm trường xác thực tài khoản
+
+    @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
+    val addresses: List<Address> = mutableListOf() // ✅ Liên kết danh sách địa chỉ
 ) : UserDetails {
 
     override fun getAuthorities(): Collection<GrantedAuthority> {

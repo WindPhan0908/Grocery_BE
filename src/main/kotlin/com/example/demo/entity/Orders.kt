@@ -33,7 +33,20 @@ data class Orders(
     var isPaid: Boolean = false,  // ✅ Kiểm tra đã thanh toán hay chưa
 
     @Column(name = "created_at")
-    val createdAt: Instant? = Instant.now()
+    val createdAt: Instant? = Instant.now(),
+
+    // 🏠 Thêm các trường địa chỉ tĩnh
+    @Column(name = "street", nullable = false)
+    val street: String,
+
+    @Column(name = "province", nullable = false)
+    val province: String,
+
+    @Column(name = "district", nullable = false)
+    val district: String,
+
+    @Column(name = "ward", nullable = false)
+    val ward: String
 )
 
 enum class OrderStatus {
