@@ -19,7 +19,7 @@ data class Reviews(
     val product: Products,
 
     @Column(nullable = false)
-    val rating: Int,
+    val rating: Float,
 
     val comment: String? = null,
 

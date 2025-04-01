@@ -46,7 +46,7 @@ data class Products(
     val offerPrice: Double? = null, 
 
     @Column(name = "avg_rating", nullable = true)
-    val avgRating: Int? = null, 
+    val avgRating: Float? = null, 
 
     @Column(name = "start_date", nullable = true)
     val startDate: Instant? = null,
