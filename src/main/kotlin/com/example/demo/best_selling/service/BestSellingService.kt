@@ -27,6 +27,10 @@ class BestSellingService(
             val product = productRepository.findByIdOrNull(productId) ?: return@mapNotNull null
             val latestOffer = exclusiveOfferProductRepository.findTopByProductOrderByStartDateDesc(product)
 
+            val offerPrice = latestOffer?.let {
+                product.price * (1 - (it.discountPercentage ?: it.offer.discountPercentage) / 100)
+            }
+
             ProductDto(
                 id = product.id ?: 0,
                 name = product.name,
@@ -34,7 +38,7 @@ class BestSellingService(
                 imageUrl = product.imageUrl,
                 totalSold = totalSold,
                 avgRating = product.avgRating,
-                offerPrice = product.offerPrice,
+                offerPrice = offerPrice, // Tính giá ưu đãi từ latestOffer
                 startDate = latestOffer?.startDate,
                 endDate = latestOffer?.endDate
             )

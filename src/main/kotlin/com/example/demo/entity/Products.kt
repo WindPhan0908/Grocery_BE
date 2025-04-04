@@ -42,9 +42,6 @@ data class Products(
     @JoinColumn(name = "brand_id", nullable = true)
     val brand: Brands? = null,
 
-    @Column(name = "offer_price", nullable = true)
-    val offerPrice: Double? = null, 
-
     @Column(name = "avg_rating", nullable = true)
     val avgRating: Float? = null, // Điểm đánh giá trung bình
 

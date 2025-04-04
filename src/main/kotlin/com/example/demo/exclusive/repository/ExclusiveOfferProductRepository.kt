@@ -7,5 +7,6 @@ import com.example.demo.entity.Products
 
 @Repository
 interface ExclusiveOfferProductRepository : JpaRepository<ExclusiveOfferProducts, Int> {
+    fun findByProduct(product: Products): List<ExclusiveOfferProducts>
     fun findTopByProductOrderByStartDateDesc(product: Products): ExclusiveOfferProducts?
 }
