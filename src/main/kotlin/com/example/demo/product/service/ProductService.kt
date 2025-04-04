@@ -18,6 +18,8 @@ import com.example.demo.product.dto.NutritionValueDTO
 import com.example.demo.entity.ProductNutrition
 import com.example.demo.entity.Products
 import org.springframework.transaction.annotation.Transactional
+import com.example.demo.exclusive.repository.ExclusiveOfferProductRepository
+import com.example.demo.entity.ExclusiveOfferProducts
 
 @Service
 class ProductService(
@@ -25,9 +27,9 @@ class ProductService(
     private val categoryRepository: CategoryRepository,
     private val brandRepository: BrandRepository,
     private val productNutritionRepo: ProductNutritionRepository,
-    private val nutritionRepository: NutritionRepository
+    private val nutritionRepository: NutritionRepository,
+    private val exclusiveOfferProductRepository: ExclusiveOfferProductRepository,
 ) {
-
     fun createProduct(request: ProductRequestDTO): ProductResponseDTO {
         val category = request.categoryId?.let { 
             categoryRepository.findById(it).orElseThrow { IllegalArgumentException("Category not found") } 
@@ -35,7 +37,7 @@ class ProductService(
         val brand = request.brandId?.let { 
             brandRepository.findById(it).orElseThrow { IllegalArgumentException("Brand not found") } 
         }
-
+    
         val product = productRepository.save(
             Products(
                 name = request.name,
@@ -54,13 +56,16 @@ class ProductService(
                 createdAt = Instant.now()
             )
         )
-
+    
+        // Get latest offer if exists
+        val latestOffer = exclusiveOfferProductRepository.findTopByProductOrderByStartDateDesc(product)
+    
         request.nutritionValues?.forEach {
             val nutrition = nutritionRepository.findById(it.nutritionId).orElseThrow { IllegalArgumentException("Nutrition not found") }
             productNutritionRepo.save(ProductNutrition(product = product, nutrition = nutrition, value = it.value))
         }
-
-        return toProductResponseDTO(product)
+    
+        return toProductResponseDTO(product, latestOffer)
     }
 
     fun getProductById(id: Int): ProductResponseDTO {
@@ -71,14 +76,14 @@ class ProductService(
     @Transactional
     fun updateProduct(id: Int, request: ProductRequestDTO): ProductResponseDTO {
         val existingProduct = productRepository.findById(id).orElseThrow { IllegalArgumentException("Product not found") }
-    
+
         val category = request.categoryId?.let { 
             categoryRepository.findById(it).orElseThrow { IllegalArgumentException("Category not found") } 
         }
         val brand = request.brandId?.let { 
             brandRepository.findById(it).orElseThrow { IllegalArgumentException("Brand not found") } 
         }
-    
+
         val updatedProduct = productRepository.save(
             existingProduct.copy(
                 name = request.name,
@@ -96,27 +101,27 @@ class ProductService(
                 endDate = request.endDate
             )
         )
-    
-        // ✅ Tìm danh sách nutrition hiện có của sản phẩm
+
+        // Get latest offer if exists
+        val latestOffer = exclusiveOfferProductRepository.findTopByProductOrderByStartDateDesc(updatedProduct)
+
+        // Update nutrition values
         val existingNutritions = productNutritionRepo.findByProductId(updatedProduct.id!!)
-    
-        // ✅ Duyệt qua danh sách nutrition từ request
+
         request.nutritionValues?.forEach { newNutrition ->
             val existingNutrition = existingNutritions.find { it.nutrition.id == newNutrition.nutritionId }
-    
+
             if (existingNutrition != null) {
-                // ✅ Cách 1: Tạo một bản sao mới với giá trị `value` được cập nhật
                 val updatedNutrition = existingNutrition.copy(value = newNutrition.value)
-                productNutritionRepo.save(updatedNutrition)  // Lưu lại vào DB
+                productNutritionRepo.save(updatedNutrition)
             } else {
-                // ✅ Nếu nutrition chưa có, thêm mới
                 val nutrition = nutritionRepository.findById(newNutrition.nutritionId)
                     .orElseThrow { IllegalArgumentException("Nutrition not found") }
                 productNutritionRepo.save(ProductNutrition(product = updatedProduct, nutrition = nutrition, value = newNutrition.value))
             }
         }
-    
-        return toProductResponseDTO(updatedProduct)
+
+        return toProductResponseDTO(updatedProduct, latestOffer)
     }
 
     fun deleteProduct(id: Int) {
@@ -132,10 +137,11 @@ class ProductService(
         return productRepository.findByFilters(name, brandId, categoryId, pageable).map { toProductResponseDTO(it) }
     }
 
-    private fun toProductResponseDTO(product: Products): ProductResponseDTO {
+    private fun toProductResponseDTO(product: Products, latestOffer: ExclusiveOfferProducts?): ProductResponseDTO {
         val nutritionValues = productNutritionRepo.findByProductId(product.id!!).map {
             NutritionValueDTO(it.nutrition.id!!, it.value)
         }
+    
         return ProductResponseDTO(
             id = product.id!!,
             name = product.name,
@@ -149,9 +155,9 @@ class ProductService(
             brand = product.brand?.name,
             offerPrice = product.offerPrice,
             avgRating = product.avgRating,
-            startDate = product.startDate,
-            endDate = product.endDate,
+            startDate = latestOffer?.startDate,
+            endDate = latestOffer?.endDate,
             nutritionValues = nutritionValues
         )
-    }
+    }    
 }

@@ -10,10 +10,6 @@ data class ExclusiveOffers(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Int? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id")
-    val product: Products,
-
     @Column(name = "discount_percentage")
     val discountPercentage: Double,
 
@@ -21,5 +17,8 @@ data class ExclusiveOffers(
     val startDate: Instant,
 
     @Column(name = "end_date", nullable = false)
-    val endDate: Instant
+    val endDate: Instant,
+
+    @OneToMany(mappedBy = "offer", cascade = [CascadeType.ALL], orphanRemoval = true)
+    val offerProducts: List<ExclusiveOfferProducts> = mutableListOf()
 )

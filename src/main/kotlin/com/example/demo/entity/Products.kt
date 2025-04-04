@@ -46,18 +46,15 @@ data class Products(
     val offerPrice: Double? = null, 
 
     @Column(name = "avg_rating", nullable = true)
-    val avgRating: Float? = null, 
-
-    @Column(name = "start_date", nullable = true)
-    val startDate: Instant? = null,
-
-    @Column(name = "end_date", nullable = true)
-    val endDate: Instant? = null, 
+    val avgRating: Float? = null, // Điểm đánh giá trung bình
 
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
 
     @OneToMany(mappedBy = "product", cascade = [CascadeType.ALL], orphanRemoval = true)
-    val nutritionValues: List<ProductNutrition> = mutableListOf()
+    val nutritionValues: List<ProductNutrition> = mutableListOf(),
+
+    @OneToMany(mappedBy = "product", cascade = [CascadeType.ALL], orphanRemoval = true)
+    val exclusiveOfferProducts: List<ExclusiveOfferProducts> = mutableListOf()
 )
 
