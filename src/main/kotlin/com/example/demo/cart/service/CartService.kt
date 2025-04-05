@@ -1,3 +1,4 @@
+
 package com.example.demo.cart.service
 
 import com.example.demo.cart.repository.CartRepository
@@ -16,21 +17,22 @@ class CartService(
     private val userRepository: UserRepository,
     private val productRepository: ProductRepository
 ) {
-
+// change
     fun getCart(userId: Int): Map<String, Any> {
         val cartItems = cartRepository.findByUserId(userId).map { cart ->
             CartDTO(
-                id = cart.id,
-                productName = cart.product.name,
-                imageUrl = cart.product.imageUrl, // Lấy ảnh từ Product
+                id = cart.id?.toInt() ?: 0, // Đảm bảo id không null
+                productId = cart.product.id?.toInt() ?: 0,
+                productName = cart.product.name ?: "Unknown Product", // Đã xử lý null
+                imageUrl = cart.product.imageUrl ?: "", // Xử lý null cho imageUrl
                 quantity = cart.quantity,
                 price = cart.product.price,
                 totalPrice = cart.quantity * cart.product.price
             )
         }
-    
+        
         val grandTotal = cartItems.sumOf { it.totalPrice }
-    
+        
         return mapOf(
             "items" to cartItems,
             "grandTotal" to grandTotal

@@ -67,7 +67,7 @@ class ProductService(
         val product = productRepository.findById(id).orElseThrow { IllegalArgumentException("Product not found") }
         return toProductResponseDTO(product)
     }
-
+// change
     @Transactional
     fun updateProduct(id: Int, request: ProductRequestDTO): ProductResponseDTO {
         val existingProduct = productRepository.findById(id).orElseThrow { IllegalArgumentException("Product not found") }
@@ -97,23 +97,15 @@ class ProductService(
             )
         )
     
-        // ✅ Tìm danh sách nutrition hiện có của sản phẩm
+        // Xóa các nutritionValues cũ
         val existingNutritions = productNutritionRepo.findByProductId(updatedProduct.id!!)
+        productNutritionRepo.deleteAll(existingNutritions)
     
-        // ✅ Duyệt qua danh sách nutrition từ request
+        // Thêm các nutritionValues mới
         request.nutritionValues?.forEach { newNutrition ->
-            val existingNutrition = existingNutritions.find { it.nutrition.id == newNutrition.nutritionId }
-    
-            if (existingNutrition != null) {
-                // ✅ Cách 1: Tạo một bản sao mới với giá trị `value` được cập nhật
-                val updatedNutrition = existingNutrition.copy(value = newNutrition.value)
-                productNutritionRepo.save(updatedNutrition)  // Lưu lại vào DB
-            } else {
-                // ✅ Nếu nutrition chưa có, thêm mới
-                val nutrition = nutritionRepository.findById(newNutrition.nutritionId)
-                    .orElseThrow { IllegalArgumentException("Nutrition not found") }
-                productNutritionRepo.save(ProductNutrition(product = updatedProduct, nutrition = nutrition, value = newNutrition.value))
-            }
+            val nutrition = nutritionRepository.findById(newNutrition.nutritionId)
+                .orElseThrow { IllegalArgumentException("Nutrition not found") }
+            productNutritionRepo.save(ProductNutrition(product = updatedProduct, nutrition = nutrition, value = newNutrition.value))
         }
     
         return toProductResponseDTO(updatedProduct)
@@ -155,3 +147,4 @@ class ProductService(
         )
     }
 }
+
