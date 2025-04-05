@@ -16,14 +16,5 @@ data class ExclusiveOfferProducts(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "offer_id", nullable = false)
-    val offer: ExclusiveOffers,
-
-    @Column(name = "discount_percentage", nullable = true)
-    val discountPercentage: Double? = null,
-
-    @Column(name = "start_date", nullable = true)
-    val startDate: Instant? = null,
-
-    @Column(name = "end_date", nullable = true)
-    val endDate: Instant? = null
+    val offer: ExclusiveOffers
 )

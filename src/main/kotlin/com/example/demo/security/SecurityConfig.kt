@@ -13,10 +13,12 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity
 
 
 @Configuration
 @EnableWebSecurity
+@EnableGlobalMethodSecurity(prePostEnabled = true) // 🎯 Bật @PreAuthorize
 class SecurityConfig(
     private val jwtFilter: JwtFilter,
     private val customUserDetailsService: CustomUserDetailsService,
@@ -31,12 +33,13 @@ class SecurityConfig(
         http
             .csrf { it.disable() }
             .authorizeHttpRequests { auth ->
-                auth.requestMatchers("/api/reviews/**","/api/best-selling/**","/api/addresses/**","/api/payments/**","/api/cart/**","/api/products/**","/api/nutritions/**","/api/brands/**", "/api/categories/**", "/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                auth.requestMatchers("/api/offers", "/api/offers/active", "/api/offers/*","/api/reviews/**","/api/best-selling/**","/api/addresses/**","/api/payments/**","/api/cart/**","/api/products/**","/api/nutritions/**","/api/brands/**", "/api/categories/**", "/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // 🎯 API dành cho CUSTOMER
                 auth.requestMatchers("/api/orders/customer/**").hasAnyRole("CUSTOMER", "ADMIN")
 
                 // 🎯 API dành cho ADMIN
                 auth.requestMatchers("/api/orders/admin/**").hasRole("ADMIN")
+                auth.requestMatchers("/api/offers/**").hasRole("ADMIN")
 
                 auth.anyRequest().authenticated()
             }

@@ -13,7 +13,6 @@ data class ProductRequestDTO(
     val imageUrl: String?,
     val categoryId: Int?,
     val brandId: Int?,
-    val avgRating: Float?,
     val nutritionValues: List<NutritionValueDTO>?
 )
 

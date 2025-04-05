@@ -51,7 +51,7 @@ class ProductService(
                 imageUrl = request.imageUrl,
                 category = category,
                 brand = brand,
-                avgRating = request.avgRating,
+                avgRating = 0.0f,
                 createdAt = Instant.now()
             )
         )
@@ -90,8 +90,7 @@ class ProductService(
                 description = request.description,
                 imageUrl = request.imageUrl,
                 category = category,
-                brand = brand,
-                avgRating = request.avgRating
+                brand = brand
             )
         )
 
@@ -128,23 +127,23 @@ class ProductService(
         val nutritionValues = productNutritionRepo.findByProductId(product.id!!).map {
             NutritionValueDTO(it.nutrition.id!!, it.value)
         }
+    
+        // Lấy ưu đãi đang hoạt động trực tiếp từ repository
+        val activeOffer = exclusiveOfferProductsRepository.findActiveOffersByProductId(product.id!!)
+            .firstOrNull() // Lấy offer đầu tiên (nếu có nhiều offer, cần xem xét logic nghiệp vụ)
 
-        // Lấy thông tin ưu đãi từ ExclusiveOfferProducts (nếu có)
-        val activeOffer = exclusiveOfferProductsRepository.findByProduct(product)
-            .find { offerProduct -> offerProduct.offer.startDate <= Instant.now() && offerProduct.offer.endDate >= Instant.now() }
-
-        val offerInfo = activeOffer?.let { offerProduct ->
-            val offerPrice = product.price * (1 - (offerProduct.discountPercentage ?: offerProduct.offer.discountPercentage) / 100)
+        val offerInfo = activeOffer?.let {
+            val offerPrice = product.price * (1 - it.offer.discountPercentage / 100)
             OfferInfo(
-                discountPercentage = offerProduct.discountPercentage ?: offerProduct.offer.discountPercentage,
-                startDate = offerProduct.startDate ?: offerProduct.offer.startDate,
-                endDate = offerProduct.endDate ?: offerProduct.offer.endDate,
+                discountPercentage = it.offer.discountPercentage,
+                startDate = it.offer.startDate,
+                endDate = it.offer.endDate,
                 offerPrice = offerPrice
             )
         }
-
+    
         return ProductResponseDTO(
-            id = product.id!!,
+            id = product.id,
             name = product.name,
             price = product.price,
             stock = product.stock,

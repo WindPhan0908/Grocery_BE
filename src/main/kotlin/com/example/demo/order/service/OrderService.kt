@@ -23,6 +23,7 @@ import com.example.demo.entity.PaymentStatus
 import com.example.demo.entity.*
 import com.example.demo.payment.repository.PaymentRepository
 import com.example.demo.address.repository.AddressRepository
+import com.example.demo.exclusive.repository.ExclusiveOfferProductRepository
 import java.math.BigDecimal
 
 @Service
@@ -33,8 +34,17 @@ class OrderService(
     private val userRepository: UserRepository,
     private val productRepository: ProductRepository,
     private val paymentRepository: PaymentRepository,
-    private val addressesRepository: AddressRepository // ✅ Thêm repository này
+    private val addressesRepository: AddressRepository, // ✅ Thêm repository này
+    private val exclusiveOfferProductRepository: ExclusiveOfferProductRepository
 ) {
+    fun getEffectivePrice(product: Products): Double {
+        val offer = exclusiveOfferProductRepository.findActiveOffersByProductId(product.id!!).firstOrNull()
+        return offer?.let {
+            val discount = it.offer.discountPercentage
+            product.price * (1 - discount / 100)
+        } ?: product.price
+    }    
+    
     @Transactional
     fun placeOrder(userId: Int, paymentProvider: PaymentProvider): String {
         val cartItems = cartRepository.findByUserId(userId)
@@ -45,7 +55,6 @@ class OrderService(
         val user = userRepository.findById(userId)
             .orElseThrow { CustomException("User not found", "USER_NOT_FOUND") }
 
-        // ✅ Lấy địa chỉ mặc định của User
         val defaultAddress = addressesRepository.findByUserId(userId)
             .firstOrNull { it.isDefault }
             ?: throw CustomException("No default address found", "NO_DEFAULT_ADDRESS")
@@ -56,16 +65,23 @@ class OrderService(
             }
         }
 
+        // Trừ stock và cập nhật lại product
         cartItems.forEach { cart ->
             cart.product.stock -= cart.quantity
             productRepository.save(cart.product)
         }
 
         val orderCode = generateUniqueOrderCode()
-        val totalOrderPrice = cartItems.sumOf { it.product.price.toBigDecimal() * it.quantity.toBigDecimal() }
-        val status = if (paymentProvider == PaymentProvider.COD) OrderStatus.AWAITING_PICKUP else OrderStatus.PENDING
+        val totalOrderPrice = cartItems.sumOf {
+            val price = getEffectivePrice(it.product)
+            price.toBigDecimal() * it.quantity.toBigDecimal()
+        }
 
-        // ✅ Lưu địa chỉ vào đơn hàng
+        val status = if (paymentProvider == PaymentProvider.COD)
+            OrderStatus.AWAITING_PICKUP
+        else
+            OrderStatus.PENDING
+
         val order = Orders(
             user = user,
             orderCode = orderCode,
@@ -74,14 +90,15 @@ class OrderService(
             paymentMethod = paymentProvider,
             createdAt = Instant.now(),
             street = defaultAddress.street,
-            province = defaultAddress.province.name, // Use Province.name
-            district = defaultAddress.district.name, // Use District.name
-            ward = defaultAddress.ward.name          // Use Ward.name
-        )        
+            province = defaultAddress.province.name,
+            district = defaultAddress.district.name,
+            ward = defaultAddress.ward.name
+        )
         ordersRepository.save(order)
 
         val orderItems = cartItems.map { cart ->
-            OrderItems(order = order, product = cart.product, quantity = cart.quantity, price = cart.product.price)
+            val price = getEffectivePrice(cart.product)
+            OrderItems(order = order, product = cart.product, quantity = cart.quantity, price = price)
         }
         orderItemsRepository.saveAll(orderItems)
 

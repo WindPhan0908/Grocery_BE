@@ -9,23 +9,34 @@ import com.example.demo.cart.dto.CartDTO
 import com.example.demo.exception.CustomException  // Import CustomException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import com.example.demo.exclusive.repository.ExclusiveOfferProductRepository
 
 @Service
 class CartService(
     private val cartRepository: CartRepository,
     private val userRepository: UserRepository,
-    private val productRepository: ProductRepository
+    private val productRepository: ProductRepository,
+    private val offerProductRepository: ExclusiveOfferProductRepository, // Thêm repository
+
 ) {
 
     fun getCart(userId: Int): Map<String, Any> {
         val cartItems = cartRepository.findByUserId(userId).map { cart ->
+            val product = cart.product
+            val activeOffer = offerProductRepository.findActiveOffersByProductId(product.id!!).firstOrNull()
+    
+            val effectivePrice = activeOffer?.let {
+                val discount = it.offer.discountPercentage
+                product.price * (1 - discount / 100)
+            } ?: product.price
+    
             CartDTO(
                 id = cart.id,
-                productName = cart.product.name,
-                imageUrl = cart.product.imageUrl, // Lấy ảnh từ Product
+                productName = product.name,
+                imageUrl = product.imageUrl,
                 quantity = cart.quantity,
-                price = cart.product.price,
-                totalPrice = cart.quantity * cart.product.price
+                price = effectivePrice,
+                totalPrice = cart.quantity * effectivePrice
             )
         }
     
@@ -35,8 +46,7 @@ class CartService(
             "items" to cartItems,
             "grandTotal" to grandTotal
         )
-    }
-      
+    }    
 
     fun addToCart(userId: Int, productId: Int, quantity: Int): String {
         if (quantity <= 0) {

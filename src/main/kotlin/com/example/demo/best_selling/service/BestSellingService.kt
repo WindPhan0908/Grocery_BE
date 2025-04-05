@@ -14,7 +14,7 @@ import com.example.demo.entity.Products
 class BestSellingService(
     private val orderItemsRepository: OrderItemsRepository,
     private val productRepository: ProductRepository,
-    private val exclusiveOfferProductRepository: ExclusiveOfferProductRepository // thêm repo mới
+    private val exclusiveOfferProductRepository: ExclusiveOfferProductRepository
 ) {
     fun getBestSellingProducts(): List<ProductDto> {
         val pageable = PageRequest.of(0, 10)
@@ -25,10 +25,10 @@ class BestSellingService(
             val totalSold = (result[1] as? Number)?.toLong() ?: 0L
 
             val product = productRepository.findByIdOrNull(productId) ?: return@mapNotNull null
-            val latestOffer = exclusiveOfferProductRepository.findTopByProductOrderByStartDateDesc(product)
+            val latestOffer = exclusiveOfferProductRepository.findTopByProductOrderByOfferStartDateDesc(product)
 
             val offerPrice = latestOffer?.let {
-                product.price * (1 - (it.discountPercentage ?: it.offer.discountPercentage) / 100)
+                product.price * (1 - it.offer.discountPercentage / 100)
             }
 
             ProductDto(
@@ -38,9 +38,9 @@ class BestSellingService(
                 imageUrl = product.imageUrl,
                 totalSold = totalSold,
                 avgRating = product.avgRating,
-                offerPrice = offerPrice, // Tính giá ưu đãi từ latestOffer
-                startDate = latestOffer?.startDate,
-                endDate = latestOffer?.endDate
+                offerPrice = offerPrice,
+                startDate = latestOffer?.offer?.startDate,
+                endDate = latestOffer?.offer?.endDate
             )
         }
     }
