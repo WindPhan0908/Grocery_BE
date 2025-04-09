@@ -21,6 +21,7 @@ class MomoService : PaymentProcessor {
     private val accessKey = "F8BBA842ECF85"
     private val secretKey = "K951B6PE1waDMi640xX08PD3vg6EkVlz"
     private val notifyUrl = "https://localhost:8081/payment-callback"
+    private val USD_TO_VND_RATE = BigDecimal(25000) // giả định 1 USD = 25,000 VND
 
     private val logger = Logger.getLogger(MomoService::class.java.name)
     private val objectMapper = ObjectMapper()
@@ -30,10 +31,16 @@ class MomoService : PaymentProcessor {
     override fun createPayment(orderId: String, amount: BigDecimal): String {
         val requestId = UUID.randomUUID().toString()
         val uniqueOrderId = "${orderId}_${System.currentTimeMillis()}" // Generate uniqueOrderId
-        val amountAsInteger = amount.toBigInteger()
+        val amountVND = amount.multiply(USD_TO_VND_RATE).toBigInteger() // convert USD to VND
+
+        // Validate min and max for MoMo allowed amount
+if (amountVND < BigDecimal(1000).toBigInteger() || amountVND > BigDecimal(50000000).toBigInteger()) {
+    throw IllegalArgumentException("Transaction amount must be between 1,000 VND and 50,000,000 VND after conversion. Current: $amountVND VND")
+}
+
         val returnUrl = "http://localhost:8081/api/payments/verify?orderId=$orderId&uniqueOrderId=$uniqueOrderId" // Include uniqueOrderId
 
-        val rawSignature = "accessKey=$accessKey&amount=$amountAsInteger&extraData=&ipnUrl=$notifyUrl&orderId=$uniqueOrderId&orderInfo=pay with MoMo&partnerCode=$partnerCode&redirectUrl=$returnUrl&requestId=$requestId&requestType=captureWallet"
+        val rawSignature = "accessKey=$accessKey&amount=$amountVND&extraData=&ipnUrl=$notifyUrl&orderId=$uniqueOrderId&orderInfo=pay with MoMo&partnerCode=$partnerCode&redirectUrl=$returnUrl&requestId=$requestId&requestType=captureWallet"
         val signature = hmacSHA256(rawSignature, secretKey)
 
         logger.info("Raw Signature: $rawSignature")
@@ -43,7 +50,7 @@ class MomoService : PaymentProcessor {
             "partnerCode" to partnerCode,
             "accessKey" to accessKey,
             "requestId" to requestId,
-            "amount" to amountAsInteger,
+            "amount" to amountVND ,
             "orderId" to uniqueOrderId,
             "orderInfo" to "pay with MoMo",
             "redirectUrl" to returnUrl,
