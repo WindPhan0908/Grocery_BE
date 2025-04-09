@@ -5,6 +5,8 @@ import com.example.demo.service.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import com.example.demo.dto.UpdateMyProfileRequest
+import com.example.demo.dto.UpdateUserByAdminRequest
 
 @RestController
 @RequestMapping("/api/users")
@@ -47,6 +49,40 @@ class UserController(private val userService: UserService) {
             ResponseEntity.ok(user)
         } catch (e: NoSuchElementException) {
             ResponseEntity.status(404).body(mapOf("error" to "User with ID $id not found"))
+        }
+    }
+
+    @PutMapping("/me")
+    @PreAuthorize("hasAuthority('ROLE_CUSTOMER')")
+    fun updateMyProfile(@RequestBody request: UpdateMyProfileRequest): ResponseEntity<Any> {
+        return try {
+            val updatedUser = userService.updateCurrentUser(
+                fullName = request.fullName,
+                phone = request.phone
+            )
+            ResponseEntity.ok(mapOf("message" to "Profile updated successfully", "user" to updatedUser))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(mapOf("error" to e.message))
+        }
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    fun updateUserByAdmin(
+        @PathVariable id: Int,
+        @RequestBody request: UpdateUserByAdminRequest
+    ): ResponseEntity<Any> {
+        return try {
+            val updatedUser = userService.updateUserByAdmin(
+                id = id,
+                fullName = request.fullName,
+                phone = request.phone,
+                isVerified = request.isVerified,
+                roleId = request.roleId
+            )
+            ResponseEntity.ok(mapOf("message" to "User updated successfully", "user" to updatedUser))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(mapOf("error" to e.message))
         }
     }
 }

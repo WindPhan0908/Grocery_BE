@@ -119,4 +119,58 @@ class UserService(
     }
 
     fun getUserById(id: Int): Users = userRepository.findById(id).orElseThrow { NoSuchElementException("User with ID $id not found") }
+
+    fun updateCurrentUser(
+        fullName: String?,
+        phone: String?
+    ): Users {
+        val currentUser = getCurrentUser()
+
+        if (phone != null && !phone.matches(phoneRegex)) {
+            throw CustomException("Invalid phone number format", "INVALID_PHONE")
+        }
+
+        if (phone != null && phone != currentUser.phone && userRepository.findByPhone(phone) != null) {
+            throw CustomException("Phone number already in use", "PHONE_EXISTS")
+        }
+
+        val updatedUser = currentUser.copy(
+            fullName = fullName ?: currentUser.fullName,
+            phone = phone ?: currentUser.phone
+        )
+
+        return userRepository.save(updatedUser)
+    }
+
+    fun updateUserByAdmin(
+        id: Int,
+        fullName: String?,
+        phone: String?,
+        isVerified: Boolean?,
+        roleId: Int?
+    ): Users {
+        val user = userRepository.findById(id).orElseThrow { NoSuchElementException("User not found") }
+
+        if (phone != null && !phone.matches(phoneRegex)) {
+            throw CustomException("Invalid phone number format", "INVALID_PHONE")
+        }
+
+        if (phone != null && phone != user.phone && userRepository.findByPhone(phone) != null) {
+            throw CustomException("Phone number already in use", "PHONE_EXISTS")
+        }
+
+        val role = if (roleId != null) {
+            rolesRepository.findById(roleId).orElseThrow { NoSuchElementException("Role not found") }
+        } else user.role
+
+        val updatedUser = user.copy(
+            fullName = fullName ?: user.fullName,
+            phone = phone ?: user.phone,
+            isVerified = isVerified ?: user.isVerified,
+            role = role
+        )
+
+        return userRepository.save(updatedUser)
+    }
+
 }
