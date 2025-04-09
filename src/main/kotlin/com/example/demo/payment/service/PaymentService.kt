@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import com.example.demo.service.EmailService
 import java.util.logging.Logger
+import com.example.demo.payment.service.external.MomoService
+import com.example.demo.payment.service.external.MomoProcessor
 import java.util.*
 
 @Service
@@ -24,11 +26,12 @@ class PaymentService(
     private val paymentProcessors: List<PaymentProcessor>,
     private val payPalService: PayPalService,
     private val emailService: EmailService,
+    private val momoService: MomoService,
     private val logger: Logger = Logger.getLogger(PaymentService::class.java.name)
 ) {
+    @Transactional
     fun createPayment(request: PaymentRequestDTO): PaymentResponseDTO {
-        val orderId = request.orderId // Đã là Int, không cần chuyển đổi
-
+        val orderId = request.orderId
         val order = orderRepository.findById(orderId)
             .orElseThrow { IllegalArgumentException("Order with ID $orderId not found") }
 
@@ -43,14 +46,12 @@ class PaymentService(
         val processor = paymentProcessors.find { it.getProvider() == order.paymentMethod }
             ?: throw IllegalArgumentException("Payment provider not supported")
 
-        // Kiểm tra xem đã có payment nào cho order này chưa
         val existingPayments = paymentRepository.findAllByOrderId(orderId)
         if (existingPayments.isNotEmpty()) {
             throw IllegalStateException("A payment already exists for order $orderId")
         }
 
         val paymentUrl = processor.createPayment(order.id.toString(), order.totalPrice)
-
         val payment = Payment(
             order = order,
             transactionId = UUID.randomUUID().toString(),
@@ -58,42 +59,28 @@ class PaymentService(
         )
 
         paymentRepository.save(payment)
-
-        return PaymentResponseDTO(paymentUrl)
+        return PaymentResponseDTO(paymentUrl) // uniqueOrderId is embedded in the redirectUrl
     }
 
     @Transactional
-    fun confirmPayment(callback: PaymentCallbackDTO): String {
-        val payments = paymentRepository.findAllByTransactionId(callback.transactionId)
-        if (payments.isEmpty()) {
-            return "Transaction not found"
-        }
-        if (payments.size > 1) {
-            throw IllegalStateException("Multiple payments found for transactionId ${callback.transactionId}")
-        }
+    fun verifyPayment(
+        orderId: String,
+        uniqueOrderId: String?,
+        paymentId: String? = null,
+        payerId: String? = null,
+        requestId: String? = null,
+        amount: String? = null,
+        transId: String? = null,
+        resultCode: Int? = null,
+        signature: String? = null,
+        responseTime: Long? = null,
+        message: String? = null, // Add message
+        payType: String? = null, // Add payType
+        orderType: String? = null // Add orderType
+    ): String {
+        logger.info("Starting verifyPayment for orderId: $orderId, uniqueOrderId: $uniqueOrderId")
 
-        val payment = payments.first()
-        payment.status = when (callback.status) {
-            "COMPLETED" -> PaymentStatus.COMPLETED
-            else -> PaymentStatus.FAILED
-        }
-
-        if (payment.status == PaymentStatus.COMPLETED) {
-            orderRepository.updateOrderStatus(payment.order.id, OrderStatus.COMPLETED)
-            return "Payment successful! Your order has been processed."
-        } else {
-            paymentRepository.save(payment)
-            return "Payment failed. Please try again."
-        }
-    }
-
-    @Transactional
-    fun verifyPayment(paymentId: String, payerId: String, orderId: String): String {
-        logger.info("Starting verifyPayment for paymentId: $paymentId, payerId: $payerId, orderId: $orderId")
-
-        val orderIdInt = orderId.toIntOrNull()
-            ?: throw IllegalArgumentException("Invalid orderId: $orderId")
-
+        val orderIdInt = orderId.toIntOrNull() ?: throw IllegalArgumentException("Invalid orderId: $orderId")
         val payments = paymentRepository.findAllByOrderId(orderIdInt)
         if (payments.isEmpty()) {
             logger.warning("No payment found for orderId: $orderIdInt")
@@ -108,17 +95,30 @@ class PaymentService(
         logger.info("Found payment: ${payment.id}, status: ${payment.status}")
 
         try {
-            logger.info("Executing PayPal payment...")
-            val isSuccess = payPalService.executePayment(paymentId, payerId)
-            logger.info("PayPal payment executed, success: $isSuccess")
+            val isSuccess = when (payment.order.paymentMethod) {
+                PaymentProvider.PAYPAL -> {
+                    if (paymentId == null || payerId == null) {
+                        throw IllegalArgumentException("paymentId and payerId are required for PayPal")
+                    }
+                    logger.info("Executing PayPal payment...")
+                    payPalService.executePayment(paymentId, payerId)
+                }
+                PaymentProvider.MOMO -> {
+                    if (requestId == null || amount == null || transId == null || resultCode == null || signature == null || uniqueOrderId == null || responseTime == null || message == null || payType == null || orderType == null) {
+                        throw IllegalArgumentException("MoMo verification parameters are missing")
+                    }
+                    logger.info("Verifying MoMo payment with uniqueOrderId: $uniqueOrderId")
+                    momoService.verifyPayment(uniqueOrderId, requestId, amount, transId, resultCode, signature, responseTime, message, payType, orderType)
+                }
+                else -> throw IllegalStateException("Unsupported payment provider: ${payment.order.paymentMethod}")
+            }
 
+            logger.info("Payment verification result: $isSuccess")
             payment.status = if (isSuccess) PaymentStatus.COMPLETED else PaymentStatus.FAILED
-            logger.info("Saving payment with status: ${payment.status}")
             paymentRepository.save(payment)
-            logger.info("Payment saved successfully")
+            logger.info("Payment saved with status: ${payment.status}")
 
             if (isSuccess) {
-                // Kiểm tra trạng thái đơn hàng trước khi cập nhật
                 val order = payment.order
                 if (order.status != OrderStatus.PENDING) {
                     logger.warning("Order ${order.id} is not in PENDING status, current status: ${order.status}")
@@ -127,13 +127,10 @@ class PaymentService(
 
                 logger.info("Updating order status for orderId: ${order.id}")
                 orderRepository.updateOrderStatus(order.id, OrderStatus.COMPLETED)
-                logger.info("Order status updated to COMPLETED")
-
-                // Cập nhật isPaid
                 order.isPaid = true
                 order.status = OrderStatus.COMPLETED
                 orderRepository.save(order)
-                logger.info("Order isPaid updated to true")
+                logger.info("Order updated: isPaid=true, status=COMPLETED")
 
                 val user = payment.order.user
                 val userEmail = user.email
@@ -160,14 +157,11 @@ class PaymentService(
                     } catch (e: Exception) {
                         logger.severe("Failed to send email to $userEmail: ${e.message}")
                     }
-                } else {
-                    logger.warning("User email is null or empty for user ${user.id}, skipping email notification")
                 }
 
-                logger.info("Payment verification completed successfully")
                 return "✅ Payment successful! Your order is confirmed. 🎉"
             } else {
-                logger.warning("Payment failed during execution")
+                logger.warning("Payment failed during verification")
                 return "❌ Payment failed. Please try again."
             }
         } catch (e: Exception) {
@@ -175,6 +169,31 @@ class PaymentService(
             payment.status = PaymentStatus.FAILED
             paymentRepository.save(payment)
             return "❌ Payment execution failed: ${e.message}. Please try again."
+        }
+    }
+
+    @Transactional
+    fun confirmPayment(callback: PaymentCallbackDTO): String {
+        val payments = paymentRepository.findAllByTransactionId(callback.transactionId)
+        if (payments.isEmpty()) {
+            return "Transaction not found"
+        }
+        if (payments.size > 1) {
+            throw IllegalStateException("Multiple payments found for transactionId ${callback.transactionId}")
+        }
+
+        val payment = payments.first()
+        payment.status = when (callback.status) {
+            "COMPLETED" -> PaymentStatus.COMPLETED
+            else -> PaymentStatus.FAILED
+        }
+
+        if (payment.status == PaymentStatus.COMPLETED) {
+            orderRepository.updateOrderStatus(payment.order.id, OrderStatus.COMPLETED)
+            return "Payment successful! Your order has been processed."
+        } else {
+            paymentRepository.save(payment)
+            return "Payment failed. Please try again."
         }
     }
 

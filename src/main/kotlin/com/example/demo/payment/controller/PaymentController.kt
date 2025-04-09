@@ -38,16 +38,39 @@ class PaymentController(
     }
 
     @GetMapping("/verify")
-    fun verifyPayment(
-        @RequestParam("paymentId") paymentId: String,
-        @RequestParam("PayerID") payerId: String,
-        @RequestParam("orderId") orderId: String
-    ): ResponseEntity<String> {
-        val message = paymentService.verifyPayment(paymentId, payerId, orderId)
-        return if (message.contains("successful")) {
-            ResponseEntity.ok(message)
-        } else {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message)
-        }
-    }
+fun verifyPayment(
+    @RequestParam("orderId") orderIds: List<String>,
+    @RequestParam(value = "uniqueOrderId", required = false) uniqueOrderId: String?,
+    @RequestParam(value = "paymentId", required = false) paymentId: String?,
+    @RequestParam(value = "payerId", required = false) payerId: String?,
+    @RequestParam(value = "requestId", required = false) requestId: String?,
+    @RequestParam(value = "amount", required = false) amount: String?,
+    @RequestParam(value = "transId", required = false) transId: String?,
+    @RequestParam(value = "resultCode", required = false) resultCode: Int?,
+    @RequestParam(value = "signature", required = false) signature: String?,
+    @RequestParam(value = "responseTime", required = false) responseTime: Long?,
+    @RequestParam(value = "message", required = false) message: String?, // Add message
+    @RequestParam(value = "payType", required = false) payType: String?, // Add payType
+    @RequestParam(value = "orderType", required = false) orderType: String? // Add orderType
+): ResponseEntity<String> {
+    val originalOrderId = orderIds.firstOrNull() ?: throw IllegalArgumentException("Missing orderId")
+    val effectiveUniqueOrderId = uniqueOrderId ?: orderIds.getOrNull(1)
+
+    val result = paymentService.verifyPayment(
+        orderId = originalOrderId,
+        uniqueOrderId = effectiveUniqueOrderId,
+        paymentId = paymentId,
+        payerId = payerId,
+        requestId = requestId,
+        amount = amount,
+        transId = transId,
+        resultCode = resultCode,
+        signature = signature,
+        responseTime = responseTime,
+        message = message,
+        payType = payType,
+        orderType = orderType
+    )
+    return ResponseEntity.ok(result)
+}
 }

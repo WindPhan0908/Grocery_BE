@@ -2,39 +2,49 @@ package com.example.demo.payment.service.external
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.stereotype.Service
+import java.math.BigDecimal
+import java.util.UUID
+import java.util.logging.Logger
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 import java.net.HttpURLConnection
 import java.net.URI
 import java.nio.charset.StandardCharsets
-import java.util.UUID
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 import com.fasterxml.jackson.core.type.TypeReference
+import com.example.demo.entity.PaymentProvider
 
 @Service
-class MomoService {
+class MomoService : PaymentProcessor {
 
     private val momoEndpoint = "https://test-payment.momo.vn/v2/gateway/api/create"
     private val partnerCode = "MOMO"
     private val accessKey = "F8BBA842ECF85"
     private val secretKey = "K951B6PE1waDMi640xX08PD3vg6EkVlz"
-    private val returnUrl = "https://localhost:8081/payment-success"
     private val notifyUrl = "https://localhost:8081/payment-callback"
 
-    fun createPayment(orderCode: String, amount: Int): String {
+    private val logger = Logger.getLogger(MomoService::class.java.name)
+    private val objectMapper = ObjectMapper()
+
+    override fun getProvider(): PaymentProvider = PaymentProvider.MOMO
+
+    override fun createPayment(orderId: String, amount: BigDecimal): String {
         val requestId = UUID.randomUUID().toString()
-        val uniqueOrderId = "${orderCode}_${System.currentTimeMillis()}" // Generate unique ID first
-        val rawSignature = "accessKey=$accessKey&amount=$amount&extraData=&ipnUrl=$notifyUrl&orderId=$uniqueOrderId&orderInfo=pay with MoMo&partnerCode=$partnerCode&redirectUrl=$returnUrl&requestId=$requestId&requestType=captureWallet"
+        val uniqueOrderId = "${orderId}_${System.currentTimeMillis()}" // Generate uniqueOrderId
+        val amountAsInteger = amount.toBigInteger()
+        val returnUrl = "http://localhost:8081/api/payments/verify?orderId=$orderId&uniqueOrderId=$uniqueOrderId" // Include uniqueOrderId
+
+        val rawSignature = "accessKey=$accessKey&amount=$amountAsInteger&extraData=&ipnUrl=$notifyUrl&orderId=$uniqueOrderId&orderInfo=pay with MoMo&partnerCode=$partnerCode&redirectUrl=$returnUrl&requestId=$requestId&requestType=captureWallet"
         val signature = hmacSHA256(rawSignature, secretKey)
 
-        println("Raw Signature: $rawSignature")
-        println("Signature: $signature")
+        logger.info("Raw Signature: $rawSignature")
+        logger.info("Signature: $signature")
 
         val requestBody = mapOf(
             "partnerCode" to partnerCode,
             "accessKey" to accessKey,
             "requestId" to requestId,
-            "amount" to amount,
-            "orderId" to uniqueOrderId, // Use the same uniqueOrderId
+            "amount" to amountAsInteger,
+            "orderId" to uniqueOrderId,
             "orderInfo" to "pay with MoMo",
             "redirectUrl" to returnUrl,
             "ipnUrl" to notifyUrl,
@@ -43,17 +53,43 @@ class MomoService {
             "signature" to signature
         )
 
-        println("Request to MoMo: " + ObjectMapper().writeValueAsString(requestBody))
+        val jsonRequest = objectMapper.writeValueAsString(requestBody)
+        logger.info("Request to MoMo: $jsonRequest")
+
         val response = sendPostRequest(momoEndpoint, requestBody)
-        println("Parsed Response Map: $response") // Log the parsed response
-        return response["payUrl"] as? String ?: throw RuntimeException("Failed to get payUrl from MoMo. Response: $response")
+        logger.info("Parsed Response Map: $response")
+        val payUrl = response["payUrl"] as? String ?: throw RuntimeException("Failed to get payUrl from MoMo. Response: $response")
+
+        // Instead of modifying the method signature, we'll rely on the redirectUrl to carry uniqueOrderId
+        return payUrl
+    }
+
+    fun verifyPayment(
+        orderId: String, // uniqueOrderId (e.g., 44_1744165369382)
+        requestId: String,
+        amount: String,
+        transId: String,
+        resultCode: Int,
+        signature: String,
+        responseTime: Long,
+        message: String, // Add message
+        payType: String, // Add payType
+        orderType: String // Add orderType
+    ): Boolean {
+        val rawSignature = "accessKey=$accessKey&amount=$amount&extraData=&message=$message&orderId=$orderId&orderInfo=pay with MoMo&orderType=$orderType&partnerCode=$partnerCode&payType=$payType&requestId=$requestId&responseTime=$responseTime&resultCode=$resultCode&transId=$transId"
+        val computedSignature = hmacSHA256(rawSignature, secretKey)
+
+        logger.info("Verifying MoMo payment - Raw Signature: $rawSignature")
+        logger.info("Computed Signature: $computedSignature")
+        logger.info("Received Signature: $signature")
+
+        val isSignatureValid = computedSignature == signature
+        val isSuccess = resultCode == 0
+        return isSignatureValid && isSuccess
     }
 
     private fun sendPostRequest(url: String, requestBody: Map<String, Any>): Map<String, Any> {
-        val objectMapper = ObjectMapper()
         val jsonRequest = objectMapper.writeValueAsString(requestBody)
-
-        println("Sending request to MoMo: $jsonRequest")
 
         val connection = URI(url).toURL().openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
@@ -72,19 +108,21 @@ class MomoService {
             connection.inputStream.bufferedReader().use { it.readText() }
         }
 
-        println("MoMo Response Code: $responseCode")
-        println("MoMo Response Body: $responseMessage")
+        logger.info("MoMo Response Code: $responseCode")
+        logger.info("MoMo Response Body: $responseMessage")
 
         val responseMap: Map<String, Any> = objectMapper.readValue(responseMessage, object : TypeReference<Map<String, Any>>() {})
-        if (responseMap["errorCode"] != null && responseMap["errorCode"] != 0) {
-            throw RuntimeException("MoMo error: ${responseMap["message"]} (code: ${responseMap["errorCode"]})")
+        if (responseMap["resultCode"] != null && responseMap["resultCode"] != 0) {
+            throw RuntimeException("MoMo error: ${responseMap["message"]} (code: ${responseMap["resultCode"]})")
         }
         return responseMap
     }
 
     private fun hmacSHA256(data: String, key: String): String {
-        val hmacSha256 = Mac.getInstance("HmacSHA256")
-        hmacSha256.init(SecretKeySpec(key.toByteArray(), "HmacSHA256"))
-        return hmacSha256.doFinal(data.toByteArray()).joinToString("") { "%02x".format(it) }
+        val algorithm = "HmacSHA256"
+        val mac = Mac.getInstance(algorithm)
+        mac.init(SecretKeySpec(key.toByteArray(Charsets.UTF_8), algorithm))
+        val hash = mac.doFinal(data.toByteArray(Charsets.UTF_8))
+        return hash.joinToString("") { "%02x".format(it) }
     }
 }
