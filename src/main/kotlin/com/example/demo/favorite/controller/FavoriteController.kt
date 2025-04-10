@@ -10,17 +10,26 @@ import org.springframework.http.ResponseEntity
 @RestController
 @RequestMapping("/api/favorites")
 class FavoriteController(private val favoriteService: FavoriteService) {
-
+// change
     @PostMapping("/{productId}")
     fun addFavorite(@PathVariable productId: Int): String {
-        val userId = (SecurityContextHolder.getContext().authentication.principal as CustomUserDetails).getId()
-        return favoriteService.addFavorite(userId, productId)
+        return try {
+            val userId = (SecurityContextHolder.getContext().authentication.principal as CustomUserDetails).getId()
+            favoriteService.addFavorite(userId, productId)
+            "Product added to favorites"
+        } catch (e: Exception) {
+            e.message ?: "Failed to add favorite"
+        }
     }
-
+    
     @DeleteMapping("/{productId}")
     fun removeFavorite(@PathVariable productId: Int): String {
-        val userId = (SecurityContextHolder.getContext().authentication.principal as CustomUserDetails).getId()
-        return favoriteService.removeFavorite(userId, productId)
+        return try {
+            val userId = (SecurityContextHolder.getContext().authentication.principal as CustomUserDetails).getId()
+            favoriteService.removeFavorite(userId, productId)
+        } catch (e: Exception) {
+            e.message ?: "Failed to remove favorite"
+        }
     }
 
     @GetMapping

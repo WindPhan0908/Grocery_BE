@@ -20,13 +20,13 @@ data class Products(
     var stock: Int,
 
     @Column(nullable = false)
-    val unitName: String, // Ví dụ: "kg", "lít", "hộp"
+    val unitName: String,
 
     @Column(nullable = false)
-    val unitValue: String, // Ví dụ: "1", "500g"
+    val unitValue: String,
 
     @Column(name = "nutrition_weight", nullable = true)
-    val nutritionWeight: String? = null, // Thông tin cân nặng dinh dưỡng
+    val nutritionWeight: String? = null,
 
     @Column(nullable = true)
     val description: String? = null,
@@ -43,10 +43,20 @@ data class Products(
     val brand: Brands? = null,
 
     @Column(name = "avg_rating", nullable = true)
-    val avgRating: Float? = null, // Điểm đánh giá trung bình
+    val avgRating: Float? = null,
 
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
+
+    // Thêm các thuộc tính mới
+    @Column(name = "offer_price", nullable = true)
+    val offerPrice: Double? = null,
+
+    @Column(name = "start_date", nullable = true)
+    val startDate: Instant? = null,
+
+    @Column(name = "end_date", nullable = true)
+    val endDate: Instant? = null,
 
     @OneToMany(mappedBy = "product", cascade = [CascadeType.ALL], orphanRemoval = true)
     val nutritionValues: List<ProductNutrition> = mutableListOf(),
@@ -54,4 +64,3 @@ data class Products(
     @OneToMany(mappedBy = "product", cascade = [CascadeType.ALL], orphanRemoval = true)
     val exclusiveOfferProducts: List<ExclusiveOfferProducts> = mutableListOf()
 )
-

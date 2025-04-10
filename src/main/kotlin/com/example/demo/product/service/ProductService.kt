@@ -68,7 +68,7 @@ class ProductService(
         val product = productRepository.findById(id).orElseThrow { IllegalArgumentException("Product not found") }
         return toProductResponseDTO(product)
     }
-
+// change
     @Transactional
     fun updateProduct(id: Int, request: ProductRequestDTO): ProductResponseDTO {
         val existingProduct = productRepository.findById(id).orElseThrow { IllegalArgumentException("Product not found") }
@@ -91,7 +91,10 @@ class ProductService(
                 imageUrl = request.imageUrl,
                 category = category,
                 brand = brand,
-                avgRating = request.avgRating
+                offerPrice = request.offerPrice,
+                avgRating = request.avgRating,
+                startDate = request.startDate,
+                endDate = request.endDate
             )
         )
 
