@@ -173,13 +173,6 @@ class OrderService(
         order.status = OrderStatus.COMPLETED
         ordersRepository.save(order)
 
-        val payment = Payment(
-            order = order,
-            transactionId = "COD-" + UUID.randomUUID().toString(),
-            status = PaymentStatus.COMPLETED
-        )
-        paymentRepository.save(payment)
-
         return "COD payment completed successfully!"
     }
 
