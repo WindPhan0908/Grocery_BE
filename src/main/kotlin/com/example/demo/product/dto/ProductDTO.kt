@@ -13,7 +13,12 @@ data class ProductRequestDTO(
     val imageUrl: String?,
     val categoryId: Int?,
     val brandId: Int?,
-    val nutritionValues: List<NutritionValueDTO>?
+    val avgRating: Float?,
+    val nutritionValues: List<NutritionValueDTO>?,
+    // Thêm các trường mới cho thông tin ưu đãi
+    val offerPrice: Double? = null,
+    val startDate: Instant? = null,
+    val endDate: Instant? = null
 )
 
 // DTO cho thông tin dinh dưỡng (nếu có)
@@ -39,6 +44,7 @@ data class ProductResponseDTO(
     val offer: OfferInfo? = null
 )
 
+// DTO cho thông tin ưu đãi
 data class OfferInfo(
     val discountPercentage: Double,
     val startDate: Instant,

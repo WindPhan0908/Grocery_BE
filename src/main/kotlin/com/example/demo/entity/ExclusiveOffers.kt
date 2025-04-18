@@ -19,6 +19,9 @@ data class ExclusiveOffers(
     @Column(name = "end_date", nullable = false)
     val endDate: Instant,
 
+    @Column(name = "created_at", nullable = false, updatable = false)
+    val createdAt: Instant = Instant.now(), // Thêm trường createdAt
+
     @OneToMany(mappedBy = "offer", cascade = [CascadeType.ALL], orphanRemoval = true)
     val offerProducts: List<ExclusiveOfferProducts> = mutableListOf()
 )

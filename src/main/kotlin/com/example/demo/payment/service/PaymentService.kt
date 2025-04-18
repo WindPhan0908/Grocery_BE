@@ -27,38 +27,45 @@ class PaymentService(
     private val logger: Logger = Logger.getLogger(PaymentService::class.java.name)
 ) {
     fun createPayment(request: PaymentRequestDTO): PaymentResponseDTO {
-        val orderId = request.orderId // Đã là Int, không cần chuyển đổi
-
+        val orderId = request.orderId
+    
         val order = orderRepository.findById(orderId)
             .orElseThrow { IllegalArgumentException("Order with ID $orderId not found") }
-
+    
         if (order.paymentMethod == PaymentProvider.COD) {
             throw IllegalStateException("COD orders cannot be paid online")
         }
-
+    
         if (order.status != OrderStatus.PENDING) {
             throw IllegalStateException("Order is not eligible for payment")
         }
-
+    
         val processor = paymentProcessors.find { it.getProvider() == order.paymentMethod }
             ?: throw IllegalArgumentException("Payment provider not supported")
-
+    
         // Kiểm tra xem đã có payment nào cho order này chưa
         val existingPayments = paymentRepository.findAllByOrderId(orderId)
         if (existingPayments.isNotEmpty()) {
-            throw IllegalStateException("A payment already exists for order $orderId")
+            // Nếu đã có payment, trả về paymentUrl của payment hiện tại (nếu có)
+            val existingPayment = existingPayments.first()
+            if (existingPayment.status == PaymentStatus.PENDING && existingPayment.transactionId.isNotBlank()) {
+                val paymentUrl = processor.createPayment(order.id.toString(), order.totalPrice)
+                return PaymentResponseDTO(paymentUrl)
+            } else {
+                throw IllegalStateException("A payment already exists for order $orderId and is not in a pending state")
+            }
         }
-
+    
         val paymentUrl = processor.createPayment(order.id.toString(), order.totalPrice)
-
+    
         val payment = Payment(
             order = order,
             transactionId = UUID.randomUUID().toString(),
             status = PaymentStatus.PENDING
         )
-
+    
         paymentRepository.save(payment)
-
+    
         return PaymentResponseDTO(paymentUrl)
     }
 

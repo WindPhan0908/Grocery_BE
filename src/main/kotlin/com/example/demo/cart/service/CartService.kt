@@ -9,44 +9,48 @@ import com.example.demo.cart.dto.CartDTO
 import com.example.demo.exception.CustomException  // Import CustomException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
-import com.example.demo.exclusive.repository.ExclusiveOfferProductRepository
 
 @Service
 class CartService(
     private val cartRepository: CartRepository,
     private val userRepository: UserRepository,
-    private val productRepository: ProductRepository,
-    private val offerProductRepository: ExclusiveOfferProductRepository, // Thêm repository
-
+    private val productRepository: ProductRepository
 ) {
-
-    fun getCart(userId: Int): Map<String, Any> {
-        val cartItems = cartRepository.findByUserId(userId).map { cart ->
-            val product = cart.product
-            val activeOffer = offerProductRepository.findActiveOffersByProductId(product.id!!).firstOrNull()
-    
-            val effectivePrice = activeOffer?.let {
-                val discount = it.offer.discountPercentage
-                product.price * (1 - discount / 100)
-            } ?: product.price
-    
-            CartDTO(
-                id = cart.id,
-                productName = product.name,
-                imageUrl = product.imageUrl,
-                quantity = cart.quantity,
-                price = effectivePrice,
-                totalPrice = cart.quantity * effectivePrice
-            )
+// change
+fun getCart(userId: Int): Map<String, Any> {
+    val cartItems = cartRepository.findByUserId(userId).map { cart ->
+        val product = cart.product
+        val currentTime = Instant.now()
+        // Kiểm tra xem sản phẩm có offerPrice và thời gian khuyến mãi còn hiệu lực không
+        val isDiscountValid = product.offerPrice != null &&
+            product.startDate != null && product.endDate != null &&
+            currentTime.isAfter(product.startDate) && currentTime.isBefore(product.endDate)
+        val effectivePrice = if (isDiscountValid) {
+            product.offerPrice!!
+        } else {
+            product.price
         }
-    
-        val grandTotal = cartItems.sumOf { it.totalPrice }
-    
-        return mapOf(
-            "items" to cartItems,
-            "grandTotal" to grandTotal
+        CartDTO(
+            id = cart.id?.toInt() ?: 0,
+            productId = cart.product.id?.toInt() ?: 0,
+            productName = cart.product.name ?: "Unknown Product",
+            imageUrl = cart.product.imageUrl ?: "",
+            quantity = cart.quantity,
+            price = cart.product.price,
+            offerPrice = product.offerPrice,
+            isDiscountValid = isDiscountValid, // Thêm trạng thái khuyến mãi
+            totalPrice = cart.quantity * effectivePrice
         )
-    }    
+    }
+
+    val grandTotal = cartItems.sumOf { it.totalPrice }
+
+    return mapOf(
+        "items" to cartItems,
+        "grandTotal" to grandTotal
+    )
+}
+      
 
     fun addToCart(userId: Int, productId: Int, quantity: Int): String {
         if (quantity <= 0) {

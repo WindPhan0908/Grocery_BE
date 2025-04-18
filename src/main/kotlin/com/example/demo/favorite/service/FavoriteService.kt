@@ -14,42 +14,54 @@ class FavoriteService(
     private val userRepository: UserRepository,
     private val productRepository: ProductRepository
 ) {
-    // Thêm sản phẩm vào danh sách yêu thích
     fun addFavorite(userId: Int, productId: Int): String {
-        val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("User not found") }
-        val product = productRepository.findById(productId).orElseThrow { IllegalArgumentException("Product not found") }
-
-        // Kiểm tra xem đã yêu thích sản phẩm này chưa
+        val product = productRepository.findById(productId).orElse(null)
+        if (product == null) {
+            return "Product not found"
+        }
+        val user = userRepository.findById(userId).orElse(null)
+        if (user == null) {
+            return "User not found"
+        }
         val existingFavorite = favoritesRepository.findByUserIdAndProductId(userId, productId)
         if (existingFavorite != null) {
-            return "Product is already in favorites"
+            return "Product already in favorites"
         }
-
-        val favorite = Favorites(user = user, product = product, createdAt = Instant.now())
+        val favorite = Favorites(
+            user = user,
+            product = product
+        )
         favoritesRepository.save(favorite)
         return "Product added to favorites"
     }
-
-    // Xóa sản phẩm khỏi danh sách yêu thích
+    
     fun removeFavorite(userId: Int, productId: Int): String {
         val favorite = favoritesRepository.findByUserIdAndProductId(userId, productId)
-            ?: throw IllegalArgumentException("Favorite not found")
-
-        favoritesRepository.delete(favorite)
-        return "Product removed from favorites"
+        return if (favorite != null) {
+            favoritesRepository.delete(favorite)
+            "Product removed from favorites"
+        } else {
+            "Favorite not found"
+        }
     }
 
-    // Lấy danh sách sản phẩm yêu thích của user
     fun getFavorites(userId: Int): List<FavoriteProductDTO> {
         val favoriteProducts = favoritesRepository.findByUserId(userId).map { it.product }
     
         return favoriteProducts.map { product ->
+            val currentTime = Instant.now()
+            val isDiscountValid = product.offerPrice != null &&
+                product.startDate != null && product.endDate != null &&
+                currentTime.isAfter(product.startDate) && currentTime.isBefore(product.endDate)
+            
             FavoriteProductDTO(
                 id = product.id ?: 0,
                 name = product.name,
                 price = product.price,
+                offerPrice = product.offerPrice,
+                isDiscountValid = isDiscountValid,
                 imageUrl = product.imageUrl
             )
         }
-    }    
+    }
 }

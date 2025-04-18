@@ -45,6 +45,7 @@ class OfferService(
         val product = productRepository.findById(request.productId)
             .orElseThrow { CustomException("Product not found", "NOT_FOUND", HttpStatus.NOT_FOUND) }
 
+
         val activeOffers = exclusiveOfferProductRepository.findActiveOffersByProductId(product.id!!)
 
         if (activeOffers.isNotEmpty()) {
@@ -115,7 +116,13 @@ class OfferService(
 
     fun getActiveOffers(pageable: Pageable): Page<OfferResponseDTO> {
         val now = Instant.now()
-        return exclusiveOffersRepository.findByStartDateLessThanEqualAndEndDateGreaterThanEqual(now, now, pageable)
+        // Sắp xếp theo createdAt giảm dần ngay trong Pageable
+        val sortedPageable = PageRequest.of(
+            pageable.pageNumber,
+            pageable.pageSize,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        )
+        return exclusiveOffersRepository.findByStartDateLessThanEqualAndEndDateGreaterThanEqual(now, now, sortedPageable)
             .map { toOfferResponseDTO(it) }
     }
 
@@ -126,19 +133,21 @@ class OfferService(
                 val product = offerProduct.product
                 val offerPrice = product.price * (1 - offer.discountPercentage / 100)
                 OfferProductResponseDTO(
-                    productId = product.id!!, // Xóa !! vì đã lấy từ DB
+                    productId = product.id!!,
                     productName = product.name,
                     originalPrice = product.price,
                     discountPercentage = offer.discountPercentage,
                     offerPrice = offerPrice
                 )
             }
-
+            .distinctBy { it.productId }
+    
         return OfferResponseDTO(
-            id = offer.id!!, // Xóa !! vì đã lấy từ DB
+            id = offer.id!!,
             discountPercentage = offer.discountPercentage,
             startDate = offer.startDate,
             endDate = offer.endDate,
+            createdAt = offer.createdAt,
             products = offerProducts
         )
     }

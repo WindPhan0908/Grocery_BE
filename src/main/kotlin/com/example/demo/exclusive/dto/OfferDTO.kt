@@ -17,6 +17,7 @@ data class OfferResponseDTO(
     val discountPercentage: Double,
     val startDate: Instant,
     val endDate: Instant,
+    val createdAt: Instant, // Thêm trường createdAt
     val products: List<OfferProductResponseDTO>
 )
 

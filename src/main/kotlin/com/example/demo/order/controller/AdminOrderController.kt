@@ -17,7 +17,6 @@ import java.math.BigDecimal
 
 @RestController
 @RequestMapping("api/orders/admin")
-@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 class AdminOrderController(private val orderService: OrderService) {
 
     @GetMapping("/all")
@@ -34,13 +33,13 @@ class AdminOrderController(private val orderService: OrderService) {
         @PathVariable orderId: Int,
         @RequestParam newStatus: OrderStatus
     ): ResponseEntity<String> {
-        val message = orderService.updateOrderStatus(orderId, newStatus)
+        val message = orderService.updateOrderStatus(orderId, newStatus, isAdmin = true)
         return ResponseEntity.ok(message)
     }
 
     @GetMapping("/statistics")
     fun getOrderStatistics(): ResponseEntity<Map<String, Any>> {
-        val statistics = orderService.getOrderStatistics()
+        val statistics = orderService.getOrderStatistics(isAdmin = true)
         return ResponseEntity.ok(statistics)
     }
 

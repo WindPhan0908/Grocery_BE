@@ -15,21 +15,21 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
 import com.example.demo.entity.Orders
 import com.example.demo.order.repository.OrdersRepository
-import com.example.demo.repository.UserRepository  // ✅ Import UsersRepository
-import java.time.Instant // ✅ Import Instant
-import java.util.UUID // ✅ Import UUID
-import com.example.demo.entity.PaymentProvider // ✅ Import PaymentProvider
-import com.example.demo.address.repository.AddressRepository // ✅ Import AddressRepository
-import com.example.demo.entity.Address // ✅ Import Address
+import com.example.demo.repository.UserRepository
+import java.time.Instant
+import java.util.UUID
+import com.example.demo.entity.PaymentProvider
+import com.example.demo.address.repository.AddressRepository
+import com.example.demo.entity.Address
 import java.math.BigDecimal
 
 @RestController
 @RequestMapping("api/orders/customer")
 class CustomerOrderController(
     private val orderService: OrderService,
-    private val usersRepository: UserRepository, // ✅ Thêm usersRepository
-    private val ordersRepository: OrdersRepository // ✅ Thêm ordersRepository
-    ) {
+    private val usersRepository: UserRepository,
+    private val ordersRepository: OrdersRepository
+) {
 
     fun getCurrentUserId(): Int {
         val authentication = SecurityContextHolder.getContext().authentication
@@ -45,10 +45,10 @@ class CustomerOrderController(
     }
 
     @PostMapping("/place")
-    fun placeOrder(@RequestParam paymentProvider: PaymentProvider): ResponseEntity<String> {
+    fun placeOrder(@RequestParam paymentProvider: PaymentProvider): ResponseEntity<Map<String, Any>> {
         val userId = getCurrentUserId()
-        val message = orderService.placeOrder(userId, paymentProvider)
-        return ResponseEntity.ok(message)
+        val response = orderService.placeOrder(userId, paymentProvider)
+        return ResponseEntity.ok(response)
     }
 
     @GetMapping
@@ -63,7 +63,7 @@ class CustomerOrderController(
 
     @GetMapping("/{orderId}")
     fun getOrderDetail(@PathVariable orderId: Int): ResponseEntity<OrderDTO> {
-        val order = orderService.getOrderDetails(orderId)  // 🔥 Chỉ truyền orderId
+        val order = orderService.getOrderDetails(orderId)
         return ResponseEntity.ok(order)
     }
 
@@ -91,7 +91,7 @@ class CustomerOrderController(
 
         val orders = orderService.searchOrdersByOrderCode(
             orderCode = orderCode,
-            userId = if (isAdmin) null else userId, // Nếu là admin, không cần userId
+            userId = if (isAdmin) null else userId,
             isAdmin = isAdmin,
             status = status,
             pageable = pageable
@@ -105,4 +105,3 @@ class CustomerOrderController(
         return authentication.authorities.any { it.authority == "ROLE_ADMIN" }
     }
 }
-

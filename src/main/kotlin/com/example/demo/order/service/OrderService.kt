@@ -34,7 +34,7 @@ class OrderService(
     private val userRepository: UserRepository,
     private val productRepository: ProductRepository,
     private val paymentRepository: PaymentRepository,
-    private val addressesRepository: AddressRepository, // ✅ Thêm repository này
+    private val addressesRepository: AddressRepository,
     private val exclusiveOfferProductRepository: ExclusiveOfferProductRepository
 ) {
     fun getEffectivePrice(product: Products): Double {
@@ -43,77 +43,85 @@ class OrderService(
             val discount = it.offer.discountPercentage
             product.price * (1 - discount / 100)
         } ?: product.price
-    }    
-    
-    @Transactional
-    fun placeOrder(userId: Int, paymentProvider: PaymentProvider): String {
-        val cartItems = cartRepository.findByUserId(userId)
-        if (cartItems.isEmpty()) {
-            throw CustomException("Cart is empty", "CART_EMPTY")
-        }
-
-        val user = userRepository.findById(userId)
-            .orElseThrow { CustomException("User not found", "USER_NOT_FOUND") }
-
-        val defaultAddress = addressesRepository.findByUserId(userId)
-            .firstOrNull { it.isDefault }
-            ?: throw CustomException("No default address found", "NO_DEFAULT_ADDRESS")
-
-        cartItems.forEach { cart ->
-            if (cart.product.stock < cart.quantity) {
-                throw CustomException("Not enough stock for '${cart.product.name}'", "OUT_OF_STOCK")
-            }
-        }
-
-        // Trừ stock và cập nhật lại product
-        cartItems.forEach { cart ->
-            cart.product.stock -= cart.quantity
-            productRepository.save(cart.product)
-        }
-
-        val orderCode = generateUniqueOrderCode()
-        val totalOrderPrice = cartItems.sumOf {
-            val price = getEffectivePrice(it.product)
-            price.toBigDecimal() * it.quantity.toBigDecimal()
-        }
-
-        val status = if (paymentProvider == PaymentProvider.COD)
-            OrderStatus.AWAITING_PICKUP
-        else
-            OrderStatus.PENDING
-
-        val order = Orders(
-            user = user,
-            orderCode = orderCode,
-            totalPrice = totalOrderPrice,
-            status = status,
-            paymentMethod = paymentProvider,
-            createdAt = Instant.now(),
-            street = defaultAddress.street,
-            province = defaultAddress.province.name,
-            district = defaultAddress.district.name,
-            ward = defaultAddress.ward.name
-        )
-        ordersRepository.save(order)
-
-        val orderItems = cartItems.map { cart ->
-            val price = getEffectivePrice(cart.product)
-            OrderItems(order = order, product = cart.product, quantity = cart.quantity, price = price)
-        }
-        orderItemsRepository.saveAll(orderItems)
-
-        cartRepository.deleteAll(cartItems)
-
-        if (paymentProvider != PaymentProvider.COD) {
-            val payment = Payment(
-                order = order,
-                transactionId = UUID.randomUUID().toString()
-            )
-            paymentRepository.save(payment)
-        }
-
-        return "Order placed successfully! Your order code is $orderCode."
     }
+
+    @Transactional
+fun placeOrder(userId: Int, paymentProvider: PaymentProvider): Map<String, Any> {
+    val cartItems = cartRepository.findByUserId(userId)
+    if (cartItems.isEmpty()) {
+        throw CustomException("Cart is empty", "CART_EMPTY")
+    }
+
+    val user = userRepository.findById(userId)
+        .orElseThrow { CustomException("User not found", "USER_NOT_FOUND") }
+
+    val defaultAddress = addressesRepository.findByUserId(userId)
+        .firstOrNull { it.isDefault }
+        ?: throw CustomException("No default address found", "NO_DEFAULT_ADDRESS")
+
+    cartItems.forEach { cart ->
+        if (cart.product.stock < cart.quantity) {
+            throw CustomException("Not enough stock for '${cart.product.name}'", "OUT_OF_STOCK")
+        }
+    }
+
+    // Trừ stock và cập nhật lại product
+    cartItems.forEach { cart ->
+        cart.product.stock -= cart.quantity
+        productRepository.save(cart.product)
+    }
+
+    // Gộp các sản phẩm trùng lặp trong giỏ hàng
+    val groupedCartItems = cartItems.groupBy { it.product.id }
+        .map { (productId, items) ->
+            val totalQuantity = items.sumOf { it.quantity }
+            items.first().apply { quantity = totalQuantity }
+        }
+
+    val orderCode = generateUniqueOrderCode()
+    val totalOrderPrice = groupedCartItems.sumOf {
+        val price = getEffectivePrice(it.product)
+        price.toBigDecimal() * it.quantity.toBigDecimal()
+    }
+
+    val status = if (paymentProvider == PaymentProvider.COD)
+        OrderStatus.AWAITING_PICKUP
+    else
+        OrderStatus.PENDING
+
+    val order = Orders(
+        user = user,
+        orderCode = orderCode,
+        totalPrice = totalOrderPrice,
+        status = status,
+        paymentMethod = paymentProvider,
+        createdAt = Instant.now(),
+        street = defaultAddress.street,
+        province = defaultAddress.province.name,
+        district = defaultAddress.district.name,
+        ward = defaultAddress.ward.name
+    )
+    println("Before saving order: id = ${order.id}")
+    ordersRepository.save(order)
+    println("After saving order: id = ${order.id}")
+
+    val orderItems = groupedCartItems.map { cart ->
+        val price = getEffectivePrice(cart.product)
+        OrderItems(order = order, product = cart.product, quantity = cart.quantity, price = price)
+    }
+    orderItemsRepository.saveAll(orderItems)
+    println("Saved ${orderItems.size} order items for order ${order.id}")
+
+    cartRepository.deleteAll(cartItems)
+
+    // Không tạo Payment ở đây nữa
+
+    return mapOf(
+        "message" to if (paymentProvider == PaymentProvider.COD) "Order placed successfully!" else "Order created, please proceed to payment",
+        "orderId" to order.id!!,
+        "orderCode" to orderCode
+    )
+}
 
     @Transactional
     fun cancelOrder(orderId: Int, userId: Int): String {
@@ -173,13 +181,6 @@ class OrderService(
         order.status = OrderStatus.COMPLETED
         ordersRepository.save(order)
 
-        val payment = Payment(
-            order = order,
-            transactionId = "COD-" + UUID.randomUUID().toString(),
-            status = PaymentStatus.COMPLETED
-        )
-        paymentRepository.save(payment)
-
         return "COD payment completed successfully!"
     }
 
@@ -220,10 +221,6 @@ class OrderService(
             throw CustomException("Cannot update a cancelled order", "INVALID_STATUS")
         }
 
-        if (order.status == OrderStatus.COMPLETED) {
-            throw CustomException("Cannot update a completed order", "INVALID_STATUS")
-        }
-
         if (newStatus == OrderStatus.COMPLETED && !order.isPaid) {
             throw CustomException("Cannot complete order without payment", "UNPAID_ORDER")
         }
@@ -232,27 +229,22 @@ class OrderService(
         ordersRepository.save(order)
 
         return "Order status updated to $newStatus"
-    }
-
+}
     fun getTotalRevenue(): BigDecimal {
         val completedOrders = ordersRepository.findByStatus(OrderStatus.COMPLETED, Pageable.unpaged())
         if (completedOrders.isEmpty) {
-            return BigDecimal.ZERO // Return 0 if there are no completed orders
+            return BigDecimal.ZERO
         }
         return completedOrders
-            .map { it.totalPrice } // totalPrice is already BigDecimal
-            .fold(BigDecimal.ZERO, BigDecimal::add) // Sum using BigDecimal addition
+            .map { it.totalPrice }
+            .fold(BigDecimal.ZERO, BigDecimal::add)
     }
 
-    fun getAllOrders(status: OrderStatus?, pageable: Pageable, isAdmin: Boolean = false): Page<OrderDTO> {
-        if (!isAdmin) {
-            throw CustomException("Only admins can view all orders", "FORBIDDEN")
-        }
-
+    fun getAllOrders(status: OrderStatus?, pageable: Pageable): Page<OrderDTO> {
         val orders = if (status != null) {
-            ordersRepository.findByStatus(status, pageable)
+            ordersRepository.findByStatus(status, pageable) // Sửa: orderRepository -> ordersRepository
         } else {
-            ordersRepository.findAll(pageable)
+            ordersRepository.findAll(pageable) // Sửa: orderRepository -> ordersRepository
         }
         return orders.map { convertToOrderDTO(it) }
     }
@@ -265,7 +257,7 @@ class OrderService(
         val totalOrders = ordersRepository.count()
         val totalPending = ordersRepository.countByStatus(OrderStatus.PENDING)
         val totalCompleted = ordersRepository.countByStatus(OrderStatus.COMPLETED)
-        val totalRevenue = getTotalRevenue() // Use the updated method
+        val totalRevenue = getTotalRevenue()
         return mapOf(
             "totalOrders" to totalOrders,
             "pendingOrders" to totalPending,
@@ -307,7 +299,8 @@ class OrderService(
             OrderItemDTO(
                 productName = item.product.name,
                 quantity = item.quantity,
-                price = item.price
+                price = item.price,
+                imageUrl = item.product.imageUrl // Lấy imageUrl từ Product
             )
         }
         return OrderDTO(

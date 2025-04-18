@@ -29,7 +29,7 @@ class ProductService(
     private val brandRepository: BrandRepository,
     private val productNutritionRepo: ProductNutritionRepository,
     private val nutritionRepository: NutritionRepository,
-    private val exclusiveOfferProductsRepository: ExclusiveOfferProductRepository // Thêm repository
+    private val exclusiveOfferProductsRepository: ExclusiveOfferProductRepository
 ) {
 
     fun createProduct(request: ProductRequestDTO): ProductResponseDTO {
@@ -39,7 +39,7 @@ class ProductService(
         val brand = request.brandId?.let { 
             brandRepository.findById(it).orElseThrow { IllegalArgumentException("Brand not found") } 
         }
-
+    
         val product = productRepository.save(
             Products(
                 name = request.name,
@@ -51,16 +51,16 @@ class ProductService(
                 imageUrl = request.imageUrl,
                 category = category,
                 brand = brand,
-                avgRating = 0.0f,
+                avgRating = request.avgRating,
                 createdAt = Instant.now()
             )
         )
-
+    
         request.nutritionValues?.forEach {
             val nutrition = nutritionRepository.findById(it.nutritionId).orElseThrow { IllegalArgumentException("Nutrition not found") }
             productNutritionRepo.save(ProductNutrition(product = product, nutrition = nutrition, value = it.value))
         }
-
+    
         return toProductResponseDTO(product)
     }
 
@@ -90,7 +90,11 @@ class ProductService(
                 description = request.description,
                 imageUrl = request.imageUrl,
                 category = category,
-                brand = brand
+                brand = brand,
+                offerPrice = request.offerPrice,
+                avgRating = request.avgRating,
+                startDate = request.startDate,
+                endDate = request.endDate
             )
         )
 
@@ -128,22 +132,30 @@ class ProductService(
             NutritionValueDTO(it.nutrition.id!!, it.value)
         }
     
-        // Lấy ưu đãi đang hoạt động trực tiếp từ repository
-        val activeOffer = exclusiveOfferProductsRepository.findActiveOffersByProductId(product.id!!)
-            .firstOrNull() // Lấy offer đầu tiên (nếu có nhiều offer, cần xem xét logic nghiệp vụ)
-
-        val offerInfo = activeOffer?.let {
-            val offerPrice = product.price * (1 - it.offer.discountPercentage / 100)
+        // Lấy tất cả các offer đang hoạt động cho sản phẩm
+        val activeOffers = exclusiveOfferProductsRepository.findByProduct(product)
+            .filter { offerProduct -> 
+                val start = offerProduct.offer.startDate
+                val end = offerProduct.offer.endDate
+                start <= Instant.now() && end >= Instant.now()
+            }
+    
+        // Chọn offer có discountPercentage cao nhất
+        val bestOffer = activeOffers.maxByOrNull { it.offer.discountPercentage }
+    
+        val offerInfo = bestOffer?.let { offerProduct ->
+            val discount = offerProduct.offer.discountPercentage
+            val offerPrice = product.price * (1 - discount / 100)
             OfferInfo(
-                discountPercentage = it.offer.discountPercentage,
-                startDate = it.offer.startDate,
-                endDate = it.offer.endDate,
+                discountPercentage = discount,
+                startDate = offerProduct.offer.startDate,
+                endDate = offerProduct.offer.endDate,
                 offerPrice = offerPrice
             )
         }
     
         return ProductResponseDTO(
-            id = product.id,
+            id = product.id!!,
             name = product.name,
             price = product.price,
             stock = product.stock,
